@@ -1,6 +1,5 @@
 #include <windows.h>
 #include <d3d11.h>
-//#include <cstring>
 #include <iostream>
 
 
@@ -17,19 +16,15 @@ ID3D11RenderTargetView* g_pRenderTargetView = NULL; //указатель на struct(Объект
 
 
 //ПРЕДВАРИТЕЛЬНЫЕ ОБЪЯВЛЕНИЯ ФУНКЦИЙ
-
-HRESULT InitWindow(HINSTANCE hInstance, int nCmdShow); //инициализация окна.
-HRESULT InitDevice(); // Инициализация устройств DirectX.
-void CleanupDevice(); // Удаление созданнных устройств DirectX.
 LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM); // Функция окна.
-void Render(); // Функция рисования.
 
 
-int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdLine, int nCmdShow) {
 
-	UNREFERENCED_PARAMETER(hPrevInstance); //hPrevInstance не используется.
-	UNREFERENCED_PARAMETER(lpCmdLine); //lpCmdLine не используется.
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd) {
 
+	//UNREFERENCED_PARAMETER(hPrevInstance); //hPrevInstance не используется.
+	//UNREFERENCED_PARAMETER(lpCmdLine); //lpCmdLine не используется.
+/*
 	if (FAILED(InitWindow(hInstance, nCmdShow))) {
 		return 0;
 	}
@@ -37,11 +32,15 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdLine
 		CleanupDevice();
 		return 0;		
 	}
+	*/
 
 	// СОЗДАНИЕ ОКНА
 
 	// Имя класса окна
     CONST WCHAR* wndClassName(L"DX11GraphicApp");
+	// Имя окна
+	CONST WCHAR* wndName(L"GraphicApp");
+
     
 	// Структура, описывающая класс Окна
 	WNDCLASSEX wndClass;
@@ -75,20 +74,17 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdLine
 	if (RegisterClassEx(&wndClass) == 0) {
 		return E_FAIL;
 	}
-	
 	// Создание окна
-	g_hWnd = CreateWindowEx()
+	g_hWnd = CreateWindowEx(NULL, wndClassName, wndName, WS_OVERLAPPEDWINDOW, 0, 0 ,800, 600, NULL, NULL, hInstance, NULL);
+	if (g_hWnd == 0) {
+		return E_FAIL;
+	}
+	// Вывод окна на дисплей 
+	ShowWindow(g_hWnd, nShowCmd);
 
-
-
-	//инициализация DirectX компонентов
-	
+	//инициализация DirectX компонентов	
 	// Структура, описывающая цепь связи (Swap Chain)
 	DXGI_SWAP_CHAIN_DESC sd;
-
-
-
-
 
 	MSG msg;// структура, описывающая сообщение
 	msg.message = 0; // чтобы мусор, находящйся в поле message, случайно не оказался равен WM_QUIT
@@ -98,11 +94,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdLine
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
 		}
-		Render();
+		//Render();
 	}
 
 	// окночание работы приложения
-	CleanupDevice(); 
+	//CleanupDevice(); 
 	return 0;
 }
 
