@@ -108,25 +108,56 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 	// Создание Device, Device Contex, Swap Chain, Render Target View
 	// Определим feature level, который поддерживается видеокартой, и определим используемый тип драйвера
-	D3D_FEATURE_LEVEL featureLevels[4] = { 
+	D3D_FEATURE_LEVEL featureLevels[] = { 
 		D3D_FEATURE_LEVEL_11_1,
 		D3D_FEATURE_LEVEL_11_0,
 		D3D_FEATURE_LEVEL_10_1,
 		D3D_FEATURE_LEVEL_10_0 };
 
+	// Количество элементов в массиве featureLevels
+	UINT numFeatureLevels = sizeof(featureLevels) / sizeof(D3D_FEATURE_LEVEL);
+
 	// Хотя я буду использовать только hardware type
-	D3D_DRIVER_TYPE driverTypes[3] = {
+	D3D_DRIVER_TYPE driverTypes[] = {
 		D3D_DRIVER_TYPE_HARDWARE,
 		D3D_DRIVER_TYPE_REFERENCE,
 		D3D_DRIVER_TYPE_SOFTWARE
 	};
 
-	// Create Factory Object
+	// Количество элементов в массиве dreiverTypes
+	UINT numDriverTypes = sizeof(driverTypes) / sizeof(D3D_DRIVER_TYPE);
+
+	// Создание DXGIFactory Object для того, чтобы перечислить и/или выбрать используемый адаптер(видеокарту). Я буду использоавть дефолтный адаптер
+	IDXGIFactory* pFactory(NULL);
+	if (FAILED(CreateDXGIFactory(__uuidof(IDXGIAdapter), (void**) &pFactory))) {
+		return E_FAIL;
+	}
 
 	// Указатель на дефолтный адаптер
-	IDXGIAdapter* pDefaultAdapter;
+	IDXGIAdapter* pDefaultAdapter(NULL);
+	if (FAILED(pFactory->EnumAdapters(0, &pDefaultAdapter))) {
+		return E_FAIL;
+	}
 
+	// Создание Direct3D Device
 
+	// Результат вызова CreateDevice
+	HRESULT createDeviceDeviceContextSwapChainResult(S_OK);
+
+	for (UINT driverTypeIndex = 0; driverTypeIndex < numDriverTypes; ++driverTypeIndex) {
+		for (UINT featureLevelIndex = 0; featureLevelIndex < numFeatureLevels; ++featureLevelIndex) {
+			createDeviceDeviceContextSwapChainResult = D3D11CreateDeviceAndSwapChain();
+			if (SUCCEEDED(createDeviceDeviceContextSwapChainResult)) {
+				break;
+			}
+		}
+		if (SUCCEEDED(createDeviceDeviceContextSwapChainResult)) {
+			break;
+		}
+	}
+	if (FAILED(createDeviceDeviceContextSwapChainResult)) {
+		return E_FAIL;
+	}
 
 	MSG msg;// структура, описывающая сообщение
 	msg.message = 0; // чтобы мусор, находящйся в поле message, случайно не оказался равен WM_QUIT
