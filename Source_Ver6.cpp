@@ -141,23 +141,20 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 	// Создание Direct3D Device
 
-	// Результат вызова CreateDevice
+	// Результат вызова CreateDeviceAndSwapChain
 	HRESULT createDeviceDeviceContextSwapChainResult(S_OK);
 
 	for (UINT driverTypeIndex = 0; driverTypeIndex < numDriverTypes; ++driverTypeIndex) {
 		for (UINT featureLevelIndex = 0; featureLevelIndex < numFeatureLevels; ++featureLevelIndex) {
-			createDeviceDeviceContextSwapChainResult = D3D11CreateDeviceAndSwapChain();
+			createDeviceDeviceContextSwapChainResult = D3D11CreateDeviceAndSwapChain(pDefaultAdapter, driverTypes[driverTypeIndex], NULL, NULL, );
 			if (SUCCEEDED(createDeviceDeviceContextSwapChainResult)) {
-				break;
+				goto createDeviceDeviceContextSwapChainLoopExit;
 			}
 		}
-		if (SUCCEEDED(createDeviceDeviceContextSwapChainResult)) {
-			break;
-		}
 	}
-	if (FAILED(createDeviceDeviceContextSwapChainResult)) {
 		return E_FAIL;
-	}
+
+	createDeviceDeviceContextSwapChainLoopExit:
 
 	MSG msg;// структура, описывающая сообщение
 	msg.message = 0; // чтобы мусор, находящйся в поле message, случайно не оказался равен WM_QUIT
