@@ -7,12 +7,12 @@
 HINSTANCE               g_hInst = NULL; //указатель на struct, дескриптор(handle) данного приложения.
 HWND                    g_hWnd = NULL; //указатель на struct, дескриптор(handle) окна данного приложения.
 D3D_DRIVER_TYPE         g_driverType = D3D_DRIVER_TYPE_NULL; //целочисленная константа. Переменная, обозначающая Тип драйвера, определяет, где производить вычисления.
-D3D_FEATURE_LEVEL       g_featureLevel = D3D_FEATURE_LEVEL_11_0; //целочисленная константа. Переменная, обозначающая какую версию DirectX использовать, соответственно, переменная определяет какие функции DirectX можно использовать.
+D3D_FEATURE_LEVEL       g_featureLevel = D3D_FEATURE_LEVEL_9_1; //используемый feature level, точнее, это переменная, которая будет хранить самый высокий feature level, доступный на заданном адаптере.
 ID3D11Device* g_pd3dDevice = NULL; //указатель на struct(Объект Интерфейса ID3D11Device). ID3D11Device это COM-интерфейс, который создает ресурсы(текстуры, трехмерные объекты и т.д.) для вывода на дисплей.
 ID3D11DeviceContext* g_pImmediateContext = NULL; //указатель на struct(Объект Интерфейса ID3D11DeviceContext). ID3D11DeviceContext это COM-интерфейс, который занимается отрисовкой графической информации на Дисплей.
 IDXGISwapChain* g_pSwapChain = NULL; //указатель на struct(Объект Интерфейса IDXGISwapChain). IDXGISwapChain это COM-интерфейс, который хранит в нескольких буферах несколько отрисованых Поверхностей перед их выводом на Дисплей.
 ID3D11RenderTargetView* g_pRenderTargetView = NULL; //указатель на struct(Объект Интерфейса ID3D11RenderTargetView). ID3D11RenderTargetView это COM-интерфейс, который хранит ресурсы back buffer-а. 
-D3D_FEATURE_LEVEL usedFeatureLevel = D3D_FEATURE_LEVEL_9_1; // используемый feature level
+ID3D11Texture2D* pBackBuffer = NULL; // указатель на back buffer
 
 //ПРЕДВАРИТЕЛЬНЫЕ ОБЪЯВЛЕНИЯ ФУНКЦИЙ
 
@@ -107,7 +107,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	// Дополнительные параметры Swap Chain-а
 	sd.Flags = NULL;
 
-	// Этап Создания Device, Device Contex, Swap Chain, Render Target View
+	// Этап Создания Device, Device Contex, Swap Chain, Render Target View, View Port
 
 	// Определим feature level, который поддерживается видеокартой, и определим используемый тип драйвера
 	D3D_FEATURE_LEVEL featureLevels[] = { 
@@ -141,23 +141,45 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		return E_FAIL;
 	}
 
-	// Собственно создание Direct3D Device, Device Context, Swap Chain
+	// Собственно создание Direct3D Device, Device Context, Swap Chain, View Port
 
 	// Результат вызова CreateDeviceAndSwapChain
 	HRESULT createDeviceDeviceContextSwapChainResult(S_OK);
 
 	for (UINT driverTypeIndex = 0; driverTypeIndex < numDriverTypes; ++driverTypeIndex) {
-			createDeviceDeviceContextSwapChainResult = D3D11CreateDeviceAndSwapChain(pDefaultAdapter, driverTypes[driverTypeIndex], NULL, NULL, featureLevels, numFeatureLevels, D3D11_SDK_VERSION, &sd, &g_pSwapChain, &g_pd3dDevice, &usedFeatureLevel, &g_pImmediateContext);
+			createDeviceDeviceContextSwapChainResult = D3D11CreateDeviceAndSwapChain(pDefaultAdapter, driverTypes[driverTypeIndex], NULL, NULL, featureLevels, numFeatureLevels, D3D11_SDK_VERSION, &sd, &g_pSwapChain, &g_pd3dDevice, &g_featureLevel, &g_pImmediateContext);
 			if (SUCCEEDED(createDeviceDeviceContextSwapChainResult)) {
 				goto createDeviceDeviceContextSwapChainLoopExit;
 			}	
 	}
 	// Неуспешный выход из цикла
-		return E_FAIL;
+	return createDeviceDeviceContextSwapChainResult;
     // Успешный выход из цикла
 	createDeviceDeviceContextSwapChainLoopExit:
+    
+	// Освобождение интерфеса dxgifactory
+	pFactory->Release();
+	pFactory = NULL;
+	// Освобождение интерфеса dxgiadapter
+	pDefaultAdapter->Release();
+	pDefaultAdapter = NULL;
 
+	// Получение доступа к back buffer
+	HRESULT getBufferResult(g_pSwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&pBackBuffer));
+	if (FAILED(getBufferResult)) {
+		return getBufferResult;
+	}
 
+	// Создание Render Target View
+	g_pd3dDevice->CreateRenderTargetView(pBackBuffer, NULL, &g_pRenderTargetView);
+
+	// Освобождение интерфейса back buffer, back buffer больше не нужен 
+	pBackBuffer->Release();
+	pBackBuffer = NULL;
+
+	// Создание View Port
+
+	// Привязка RTV к Output-Merger Stage
 
 	MSG msg;// структура, описывающая сообщение
 	msg.message = 0; // чтобы мусор, находящйся в поле message, случайно не оказался равен WM_QUIT
