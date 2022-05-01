@@ -17,7 +17,13 @@ ID3D11Texture2D* pBackBuffer = NULL; // указатель на back buffer
 //ПРЕДВАРИТЕЛЬНЫЕ ОБЪЯВЛЕНИЯ ФУНКЦИЙ
 
 LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM); // Функция окна.
+HRESULT createDirect3DComponents();
+HRESULT createWindow();
+void updateScene();
+void drawScene();
+void releaseObjects();
 
+// Главная функция, точка входа
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd) {
 	// СОЗДАНИЕ ОКНА
 
@@ -67,6 +73,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	ShowWindow(g_hWnd, nShowCmd);
 
 	//ИНИЦИАЛИЗАЦИЯ DirectX КОМПОНЕНТОВ	
+
+	// Переменная для хранения кода, возвращаемого вызванным методом интерфейса
+	HRESULT hr;
 
 	// Струкутра, описывающая back buffer SwapChain-a
 	DXGI_MODE_DESC backBuffer;
@@ -160,6 +169,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	// Освобождение интерфеса dxgifactory
 	pFactory->Release();
 	pFactory = NULL;
+
 	// Освобождение интерфеса dxgiadapter
 	pDefaultAdapter->Release();
 	pDefaultAdapter = NULL;
@@ -177,9 +187,24 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	pBackBuffer->Release();
 	pBackBuffer = NULL;
 
-	// Создание View Port
+	// Создание View Port, области поверхности RTV, которая и будет отображаться на дисплей
+	D3D11_VIEWPORT viewPort;
+	ZeroMemory(&viewPort, sizeof(D3D11_VIEWPORT));
+
+	viewPort.TopLeftX = 0;
+	viewPort.TopLeftY = 0;
+	viewPort.Width = 800;
+	viewPort.Height = 600;
+	// Уровень удаленности объектов, которые будут отображаться в view port
+	viewPort.MinDepth = 0;
+	viewPort.MaxDepth = 1;
+
+	// Связывание view port с графическим конвейером
+	g_pImmediateContext->RSSetViewports(1, &viewPort);
 
 	// Привязка RTV к Output-Merger Stage
+	g_pImmediateContext->OMSetRenderTargets(1, &g_pRenderTargetView, NULL);
+
 
 	MSG msg;// структура, описывающая сообщение
 	msg.message = 0; // чтобы мусор, находящйся в поле message, случайно не оказался равен WM_QUIT
