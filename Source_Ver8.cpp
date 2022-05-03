@@ -1,5 +1,10 @@
+#pragma comment(lib, "dxgi")
+#pragma comment(lib, "d3d11")
+
 #include <windows.h>
-#include <d3d11.h>
+#include <D3D11.h>
+#include <D3D10.h>
+#include <DXGI.h>
 #include <iostream>
 
 // ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ
@@ -53,20 +58,20 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
 		}
-		//Render();
-	}
 
+		drawScene();
+	}
 	// окночание работы приложения
 	releaseObjects();
 
 	return 0;
-}
+};
 
 // функция-обработчик сообщений, поступающих окну
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
 
 	// структура, содержащая необходимую информацию для рисования в клентской части окна
-	PAINTSTRUCT ps; 
+	PAINTSTRUCT ps;
 	// указатель на дескриптор(или просто дескриптор) Device Context
 	HDC hdc;
 
@@ -74,7 +79,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 
 	case(WM_PAINT):
 		// заполнение структуры ps, и очистка Update Region
-		hdc = BeginPaint(hWnd, &ps); 
+		hdc = BeginPaint(hWnd, &ps);
 
 		// очистка Update Region, и освобождение Device Context
 		EndPaint(hWnd, &ps);
@@ -85,12 +90,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 		PostQuitMessage(0);
 		break;
 
-	default: 
+	default:
 		return DefWindowProc(hWnd, message, wParam, lParam);
 	}
 
 	return 0;
-}
+};
 
 HRESULT createDirect3DComponents(UINT widthParam, UINT heightParam) {
 	HRESULT hr;
@@ -276,15 +281,33 @@ HRESULT createWindow(CONST WCHAR* wndClassNameParam, CONST WCHAR* wndNameParam, 
 	return S_OK;
 };
 
-void updateScene();
+void updateScene() {
 
-void drawScene();
+};
+
+void drawScene() {
+	const FLOAT backgroundColor[] = { 1.0f, 2.0f, 3.0f, 1.0f };
+
+	g_pImmediateContext->ClearRenderTargetView(g_pRenderTargetView, backgroundColor);
+};
 
 void releaseObjects() {
-	g_pd3dDevice->Release();
-	g_pImmediateContext->Release();
-	g_pSwapChain->Release();
-	g_pRenderTargetView->Release();
+	if (g_pRenderTargetView != NULL) {
+		g_pRenderTargetView->Release();
+		g_pRenderTargetView = NULL;
+	};
+	if (g_pSwapChain != NULL) {
+		g_pSwapChain->Release();
+		g_pSwapChain = NULL;
+	};
+	if (g_pImmediateContext != NULL) {
+		g_pImmediateContext->Release();
+		g_pImmediateContext = NULL;
+	};
+	if (g_pd3dDevice != NULL) {
+		g_pd3dDevice->Release();
+		g_pd3dDevice = NULL;
+	}
 };
 
 
