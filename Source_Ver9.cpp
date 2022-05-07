@@ -7,6 +7,7 @@
 #include <D3D11.h>
 #include <D3D10.h>
 #include <DXGI.h>
+#include <D3DX10math.h>
 #include <iostream>
 
 // ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ
@@ -51,6 +52,20 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	if (FAILED(hr)) {
 		return hr;
 	}
+
+	// Создание vertex buffer
+	// Описание vertex
+	struct Vertex {
+		D3DXVECTOR3 position;
+		D3DXCOLOR color;
+	};
+
+	// Создание Input-Layout Object
+	D3D11_INPUT_ELEMENT_DESC layout[] = {
+
+	};
+
+
 
 	MSG msg;// структура, описывающая сообщение
 	ZeroMemory(&msg, sizeof(MSG));
@@ -266,10 +281,13 @@ void updateScene() {
 };
 
 void drawScene() {
+	// Цвет пикселя
 	const FLOAT backgroundColor[] = { 0.0f, 0.0f, 1.0f, 1.0f };
 
+	// Устанавливает цвет всеч пикселей поверхности RTV к единому значению
 	g_pImmediateContext->ClearRenderTargetView(g_pRenderTargetView, backgroundColor);
 
+	// Вывод на дисплей поверхности Back Buffer
 	g_pSwapChain->Present(0, 0);
 };
 
