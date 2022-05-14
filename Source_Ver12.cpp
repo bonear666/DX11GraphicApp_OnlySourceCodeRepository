@@ -2,12 +2,14 @@
 #pragma comment(lib, "d3d11")
 #pragma comment(lib, "d3d10_1")
 #pragma comment(lib, "d3d10")
+#pragma comment(lib,"d3dcompiler")
 
 #include <windows.h>
 #include <D3D11.h>
 #include <D3D10.h>
 #include <DXGI.h>
 #include <D3DX10math.h>
+#include <d3dcompiler.h>
 #include <iostream>
 #include <new>
 
@@ -68,8 +70,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	};
 
 	// массив вершин
-	void* pVertexArrayMemory = operator new[] (sizeof(Vertex) * 3);
-	Vertex* vertexArray = new (pVertexArrayMemory) Vertex[]{
+	Vertex* vertexArray = new Vertex[]{
 		Vertex{D3DVECTOR{0.0f, 0.5f, 0.5f}, D3DXCOLOR{0.0f, 0.0f, 0.0f, 0.0f}},
 		Vertex{D3DVECTOR{0.5f, -0.5f, 0.5f}, D3DXCOLOR{0.0f, 0.0f, 0.0f, 0.0f}},
 		Vertex{D3DVECTOR{-0.5f, -0.5f, 0.5f}, D3DXCOLOR{0.0f, 0.0f, 0.0f, 0.0f}}
@@ -128,8 +129,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	g_pd3dDevice->CreateInputLayout(layout, numInputLayoutObject, ); 
 
 	// освобождение памяти, занятой массивом вершин
-	operator delete[] (pVertexArrayMemory);
-	pVertexArrayMemory = NULL;
+	delete [] vertexArray;
 	vertexArray = NULL;
 
 	MSG msg;// структура, описывающая сообщение
