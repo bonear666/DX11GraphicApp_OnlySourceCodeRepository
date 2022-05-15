@@ -24,8 +24,10 @@ ID3D11DeviceContext* g_pImmediateContext = NULL; //указатель на struct(ќбъект »н
 IDXGISwapChain* g_pSwapChain = NULL; //указатель на struct(ќбъект »нтерфейса IDXGISwapChain). IDXGISwapChain это COM-интерфейс, который хранит в нескольких буферах несколько отрисованых ѕоверхностей перед их выводом на ƒисплей.
 ID3D11RenderTargetView* g_pRenderTargetView = NULL; //указатель на struct(ќбъект »нтерфейса ID3D11RenderTargetView). ID3D11RenderTargetView это COM-интерфейс, который хранит ресурсы back buffer-а. 
 ID3D11InputLayout* g_pInputLayoutObject = NULL; // указатель на input layout object
-ID3D11VertexShader* g_pVertexshader = NULL; // указатель на vertex shader
-ID3D11PixelShader* g_pPixelShader = NULL; // указатель на pixel shader
+ID3D11VertexShader* g_pVertexshader = NULL; // указатель на интерфейс vertex shader
+ID3D11PixelShader* g_pPixelShader = NULL; // указатель на интерфейс pixel shader
+ID3DBlob* VS_Buffer = NULL; // указатель на интерфейс буфера с скомпилированным вершинным шейдером 
+ID3DBlob* PS_Buffer = NULL; // указатель на интерфейс буфера с скомпилированным пиксельным шейдером 
 ID3D11Buffer* pVertexBuffer = NULL; // указатель на буфер вершин
 
 //ѕ–≈ƒ¬ј–»“≈Ћ№Ќџ≈ ќЅЏя¬Ћ≈Ќ»я ‘”Ќ ÷»…
@@ -44,6 +46,8 @@ void updateScene();
 void drawScene();
 // ќсвобождение COM-интерфейсов
 void releaseObjects();
+// компил€ци€ шейдера
+HRESULT CompileShader(LPCWSTR srcName, LPCSTR entryPoint, LPCSTR target, ID3DBlob* buffer);
 
 // √лавна€ функци€, точка входа
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd) {
@@ -115,6 +119,20 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	
 	// указание какие примитивы собирать из вершинного буфера
 	g_pImmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+	// компил€ци€ шейдеров
+	// модель шейдеров
+	LPCSTR shadersModel;
+	// компил€ци€ вершинного шейдера
+	hr = CompileShader(L"TriangleVertexShader", "VS", "vs_5_0", VS_Buffer);
+	if (FAILED(hr)) {
+		return hr;
+	}
+	// компил€ци€ пиксельного шейдера
+	hr = CompileShader(L"TrianglePixelShader", "PS", "ps_5_0", PS_Buffer);
+	if (FAILED(hr)) {
+		return hr;
+	}
 
 	// ќписание Input-Layout Object
 	D3D11_INPUT_ELEMENT_DESC layout[] = {
@@ -354,6 +372,24 @@ void drawScene() {
 
 	// ¬ывод на дисплей поверхности Back Buffer
 	g_pSwapChain->Present(0, 0);
+};
+
+HRESULT CompileShader(LPCWSTR srcName, LPCSTR entryPoint, LPCSTR target, ID3DBlob* buffer) {
+	HRESULT hr;
+	ID3DBlob* errorsBuffer = NULL;
+
+	hr = D3DCompileFromFile(srcName, NULL, NULL, entryPoint, target, NULL, NULL, &buffer, &errorsBuffer);
+	// вывод ошибок компил€ции, если они есть
+	if (FAILED(hr)) {
+		if (errorsBuffer != NULL) {
+			OutputDebugStringA((char*)errorsBuffer->GetBufferPointer());
+			errorsBuffer->Release();
+		}
+		if (buffer != NULL) {
+			buffer->Release();
+		}
+	}
+		return hr;
 };
 
 void releaseObjects() {
