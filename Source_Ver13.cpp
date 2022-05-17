@@ -121,15 +121,26 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	g_pImmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 	// компил€ци€ шейдеров
+
 	// модель шейдеров
-	LPCSTR shadersModel;
+	struct ShaderModelDesc {
+		LPCSTR vertexShaderModel;
+		LPCSTR pixelShaderModel;
+	};
+
+	ShaderModelDesc shadersModel;
+	if (g_featureLevel >= D3D_FEATURE_LEVEL_11_0) {
+		shadersModel = { "vs_5_0", "ps_5_0" };
+	} else
+	shadersModel = { "vs_4_0", "ps_4_0" };
+
 	// компил€ци€ вершинного шейдера
-	hr = CompileShader(L"TriangleVertexShader", "VS", "vs_5_0", VS_Buffer);
+	hr = CompileShader(L"TriangleVertexShader", "VS", shadersModel.vertexShaderModel, VS_Buffer);
 	if (FAILED(hr)) {
 		return hr;
 	}
 	// компил€ци€ пиксельного шейдера
-	hr = CompileShader(L"TrianglePixelShader", "PS", "ps_5_0", PS_Buffer);
+	hr = CompileShader(L"TrianglePixelShader", "PS", shadersModel.pixelShaderModel, PS_Buffer);
 	if (FAILED(hr)) {
 		return hr;
 	}
