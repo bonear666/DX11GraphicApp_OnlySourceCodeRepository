@@ -24,7 +24,7 @@ ID3D11DeviceContext* g_pImmediateContext = NULL; //указатель на struct(Объект Ин
 IDXGISwapChain* g_pSwapChain = NULL; //указатель на struct(Объект Интерфейса IDXGISwapChain). IDXGISwapChain это COM-интерфейс, который хранит в нескольких буферах несколько отрисованых Поверхностей перед их выводом на Дисплей.
 ID3D11RenderTargetView* g_pRenderTargetView = NULL; //указатель на struct(Объект Интерфейса ID3D11RenderTargetView). ID3D11RenderTargetView это COM-интерфейс, который хранит ресурсы back buffer-а. 
 ID3D11InputLayout* g_pInputLayoutObject = NULL; // указатель на input layout object
-ID3D11VertexShader* g_pVertexshader = NULL; // указатель на интерфейс vertex shader
+ID3D11VertexShader* g_pVertexShader = NULL; // указатель на интерфейс vertex shader
 ID3D11PixelShader* g_pPixelShader = NULL; // указатель на интерфейс pixel shader
 ID3DBlob* VS_Buffer = NULL; // указатель на интерфейс буфера с скомпилированным вершинным шейдером 
 ID3DBlob* PS_Buffer = NULL; // указатель на интерфейс буфера с скомпилированным пиксельным шейдером 
@@ -145,6 +145,16 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		return hr;
 	}
 
+	// создание объекта вершинного шейдера
+	hr = g_pd3dDevice->CreateVertexShader(VS_Buffer->GetBufferPointer(), VS_Buffer->GetBufferSize(), NULL, &g_pVertexShader);
+	// создание объекта пиксельного шейдера
+	hr = g_pd3dDevice->CreatePixelShader(PS_Buffer->GetBufferPointer(), PS_Buffer->GetBufferSize(), NULL, &g_pPixelShader);
+
+	// привязка вершинного шейдера к конвейеру
+	g_pImmediateContext->VSSetShader(g_pVertexShader, NULL, NULL);
+	// привязка пиксельного шейдера к конвейеру
+	g_pImmediateContext->PSSetShader(g_pPixelShader, NULL, NULL);
+
 	// Описание Input-Layout Object
 	D3D11_INPUT_ELEMENT_DESC layout[] = {
 		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
@@ -155,7 +165,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	UINT numInputLayoutObject = sizeof(layout) / sizeof(D3D11_INPUT_ELEMENT_DESC);
 
 	// Создание Input-Layout Object
-	g_pd3dDevice->CreateInputLayout(layout, numInputLayoutObject, ); 
+	hr = g_pd3dDevice->CreateInputLayout(layout, numInputLayoutObject, VS_Buffer->GetBufferPointer(), VS_Buffer->GetBufferSize(), &g_pInputLayoutObject);
+
+	// Связывание Input-layout object с конвейером
+	g_pImmediateContext->IASetInputLayout(g_pInputLayoutObject);
 
 	// освобождение памяти, занятой массивом вершин
 	delete [] vertexArray;
