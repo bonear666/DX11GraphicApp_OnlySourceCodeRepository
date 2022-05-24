@@ -93,12 +93,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		return hr;
 	}
 
-	// массив вершин (квадрат)
+	// массив вершин (пирамида)
 	Vertex* vertexArray = new Vertex[]{
-		Vertex{D3DVECTOR{-0.5f, 0.5f, 0.0f}, D3DXCOLOR{0.0f, 0.0f, 0.0f, 0.0f}},
-		Vertex{D3DVECTOR{0.5f, 0.5f, 0.0f}, D3DXCOLOR{0.0f, 0.0f, 0.0f, 0.0f}},
-		Vertex{D3DVECTOR{0.5f, -0.5f, 0.0f}, D3DXCOLOR{0.0f, 0.0f, 0.0f, 0.0f}},
-		Vertex{D3DVECTOR{-0.5f, -0.5f, 0.0f}, D3DXCOLOR{0.0f, 0.0f, 0.0f, 0.0f}}
+		Vertex{D3DVECTOR{0.0f, 0.5f, 0.0f}, D3DXCOLOR{0.0f, 0.0f, 0.0f, 0.0f}}, // a
+		Vertex{D3DVECTOR{0.5f, 0.0f, 0.0f}, D3DXCOLOR{0.0f, 0.0f, 0.0f, 0.0f}}, //b
+		Vertex{D3DVECTOR{0.0f, -0.5f, 0.5f}, D3DXCOLOR{0.0f, 0.0f, 0.0f, 0.0f}}, //c
+		Vertex{D3DVECTOR{-0.5f, 0.0f, 0.0f}, D3DXCOLOR{0.0f, 0.0f, 0.0f, 0.0f}} //d
 	};
 
 	// создание буфера вершин, компил€ци€ шейдеров, св€зывание шейдеров и буфера вершин с конвейером
@@ -113,8 +113,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 	// индексы вершин
 	WORD indices[] = {
-		1, 2, 0,
-		0, 2, 3
+		0, 1, 2, //abc
+		3, 0, 2, //dac
+		2, 1, 3, //cbd (невидима€ грань)
+		1, 0, 3 //bad (невидима€ грань)
 	};
 
 	hr = InitMatrixes(indices);
@@ -485,7 +487,7 @@ HRESULT InitMatrixes(WORD* indices) {
 
 	// описание индекс буфера
 	D3D11_BUFFER_DESC indexBufferDesc;
-	indexBufferDesc.ByteWidth = sizeof(WORD) * 2 * 3;
+	indexBufferDesc.ByteWidth = sizeof(WORD) * 4 * 3;
 	indexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
 	indexBufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
 	indexBufferDesc.CPUAccessFlags = 0;
