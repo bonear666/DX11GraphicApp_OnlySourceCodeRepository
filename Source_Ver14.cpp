@@ -11,7 +11,6 @@
 #include <D3DX10math.h>
 #include <d3dcompiler.h>
 #include <iostream>
-#include <new>
 
 // ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ
 
@@ -29,6 +28,8 @@ ID3D11PixelShader* g_pPixelShader = NULL; // указатель на интерфейс pixel shader
 ID3DBlob* VS_Buffer = NULL; // указатель на интерфейс буфера с скомпилированным вершинным шейдером 
 ID3DBlob* PS_Buffer = NULL; // указатель на интерфейс буфера с скомпилированным пиксельным шейдером 
 ID3D11Buffer* pVertexBuffer = NULL; // указатель на буфер вершин
+ID3D11Buffer* pConstantBuffer = NULL; // констнантный буфер
+ID3D11Buffer* pIndexBuffer = NULL; // буфер индексов
 
 // ОПИСАНИЕ СТРУКТУР
 
@@ -42,6 +43,14 @@ struct Vertex {
 struct ShaderModelDesc {
 	LPCSTR vertexShaderModel;
 	LPCSTR pixelShaderModel;
+};
+
+//
+struct ConstantBuffer
+{
+	D3DMATRIX mWorld;              // Матрица мира
+	D3DMATRIX mView;        // Матрица вида
+	D3DMATRIX mProjection;  // Матрица проекции
 };
 
 //ПРЕДВАРИТЕЛЬНЫЕ ОБЪЯВЛЕНИЯ ФУНКЦИЙ
@@ -62,6 +71,10 @@ void DrawScene();
 void ReleaseObjects();
 // компиляция шейдера
 HRESULT CompileShader(LPCWSTR srcName, LPCSTR entryPoint, LPCSTR target, ID3DBlob** buffer);
+// Инициализация матриц
+HRESULT InitMatrixes(WORD* indices);   
+// Обновление матриц
+void SetMatrixes();
 
 // Главная функция, точка входа
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd) {
@@ -80,11 +93,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		return hr;
 	}
 
-	// массив вершин
+	// массив вершин (квадрат)
 	Vertex* vertexArray = new Vertex[]{
-		Vertex{D3DVECTOR{0.0f, 0.5f, 0.5f}, D3DXCOLOR{0.0f, 0.0f, 0.0f, 0.0f}},
-		Vertex{D3DVECTOR{0.5f, -0.5f, 0.5f}, D3DXCOLOR{0.0f, 0.0f, 0.0f, 0.0f}},
-		Vertex{D3DVECTOR{-0.5f, -0.5f, 0.5f}, D3DXCOLOR{0.0f, 0.0f, 0.0f, 0.0f}}
+		Vertex{D3DVECTOR{-0.5f, 0.5f, 0.0f}, D3DXCOLOR{0.0f, 0.0f, 0.0f, 0.0f}},
+		Vertex{D3DVECTOR{0.5f, 0.5f, 0.0f}, D3DXCOLOR{0.0f, 0.0f, 0.0f, 0.0f}},
+		Vertex{D3DVECTOR{0.5f, -0.5f, 0.0f}, D3DXCOLOR{0.0f, 0.0f, 0.0f, 0.0f}},
+		Vertex{D3DVECTOR{-0.5f, -0.5f, 0.0f}, D3DXCOLOR{0.0f, 0.0f, 0.0f, 0.0f}}
 	};
 
 	// создание буфера вершин, компиляция шейдеров, связывание шейдеров и буфера вершин с конвейером
@@ -96,6 +110,17 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	// освобождение памяти, занятой массивом вершин
 	delete[] vertexArray;
 	vertexArray = NULL;
+
+	// индексы вершин
+	WORD indices[] = {
+		1, 2, 0,
+		0, 2, 3
+	};
+
+	hr = InitMatrixes(indices);
+	if (FAILED(hr)) {
+		return hr;
+	}
 
 	MSG msg;// структура, описывающая сообщение
 	ZeroMemory(&msg, sizeof(MSG));
@@ -316,7 +341,7 @@ void DrawScene() {
 	g_pImmediateContext->ClearRenderTargetView(g_pRenderTargetView, backgroundColor);
 
 	// отрисовка примитивов 
-	g_pImmediateContext->Draw(3, 0);
+	g_pImmediateContext->DrawIndexed(6, 0, 0);
 
 	// Вывод на дисплей поверхности Back Buffer
 	g_pSwapChain->Present(0, 0);
@@ -353,7 +378,7 @@ HRESULT InitGeometry(Vertex* vertexArray, LPCWSTR vertexShaderName, LPCWSTR pixe
 	// описание vertex buffer
 	D3D11_BUFFER_DESC vertexBufferDesc;
 	// размер буфера
-	vertexBufferDesc.ByteWidth = sizeof(Vertex) * 3;
+	vertexBufferDesc.ByteWidth = sizeof(Vertex) * 4;
 	// уровень доступа CPU и GPU к буферу 
 	vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
 	// к какой стадии конвейера привязывать буфер
@@ -437,47 +462,103 @@ HRESULT InitGeometry(Vertex* vertexArray, LPCWSTR vertexShaderName, LPCWSTR pixe
 	return S_OK;
 }
 
+HRESULT InitMatrixes(WORD* indices) {
+	HRESULT hr;
+
+	// описание константного буфера
+	D3D11_BUFFER_DESC constantBufferDesc;
+	constantBufferDesc.ByteWidth = sizeof(ConstantBuffer);
+	constantBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+	constantBufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	constantBufferDesc.CPUAccessFlags = 0;
+	constantBufferDesc.MiscFlags = 0;
+	constantBufferDesc.StructureByteStride = 0;
+
+	// создание константного буфера
+	hr = g_pd3dDevice->CreateBuffer(&constantBufferDesc, NULL, &pConstantBuffer);
+	if (FAILED(hr)) {
+		return hr;
+	}
+
+	// связывание констнатного буфера с шейдером вершин
+	g_pImmediateContext->VSSetConstantBuffers(0, 1, &pConstantBuffer);
+
+	// описание индекс буфера
+	D3D11_BUFFER_DESC indexBufferDesc;
+	indexBufferDesc.ByteWidth = sizeof(WORD) * 2 * 3;
+	indexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+	indexBufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+	indexBufferDesc.CPUAccessFlags = 0;
+	indexBufferDesc.MiscFlags = 0;
+	indexBufferDesc.StructureByteStride = 0;
+
+	// значения индекс буфера
+	D3D11_SUBRESOURCE_DATA indexBufferInitData;
+	indexBufferInitData.pSysMem = indices;
+	indexBufferInitData.SysMemPitch = 0;
+	indexBufferInitData.SysMemSlicePitch = 0;
+
+	//создание индекс буфера
+	hr = g_pd3dDevice->CreateBuffer(&indexBufferDesc, &indexBufferInitData, &pIndexBuffer);
+	if (FAILED(hr)) {
+		return hr;
+	}
+
+	//привязка индекс буфера к конвейеру
+	g_pImmediateContext->IASetIndexBuffer(pIndexBuffer, DXGI_FORMAT_R16_UINT, 0);
+
+	return S_OK;
+}
+
 void ReleaseObjects() {
+	if (pIndexBuffer != NULL) {
+		pIndexBuffer->Release();
+		pIndexBuffer = NULL;
+	}
+	if (pConstantBuffer != NULL) {
+		pConstantBuffer->Release();
+		pConstantBuffer = NULL;
+	}
 	if (g_pInputLayoutObject != NULL) {
 		g_pInputLayoutObject->Release();
 		g_pInputLayoutObject = NULL;
-	};
+	}
 	if (g_pPixelShader != NULL) {
 		g_pPixelShader->Release();
 		g_pPixelShader = NULL;
-	};
+	}
 	if (g_pVertexShader != NULL) {
 		g_pVertexShader->Release();
 		g_pVertexShader = NULL;
-	};
+	}
 	if (PS_Buffer != NULL) {
 		PS_Buffer->Release();
 		PS_Buffer = NULL;
-	};
+	}
 	if (VS_Buffer != NULL) {
 		VS_Buffer->Release();
 		VS_Buffer = NULL;
-	};
+	}
 	if (pVertexBuffer != NULL) {
 		pVertexBuffer->Release();
 		pVertexBuffer = NULL;
-	};
+	}
 	if (g_pRenderTargetView != NULL) {
 		g_pRenderTargetView->Release();
 		g_pRenderTargetView = NULL;
-	};
+	}
 	if (g_pSwapChain != NULL) {
 		g_pSwapChain->Release();
 		g_pSwapChain = NULL;
-	};
+	}
 	if (g_pImmediateContext != NULL) {
 		g_pImmediateContext->Release();
 		g_pImmediateContext = NULL;
-	};
+	}
 	if (g_pd3dDevice != NULL) {
 		g_pd3dDevice->Release();
 		g_pd3dDevice = NULL;
-	};
+	}
 };
 
 
