@@ -5,7 +5,7 @@ cbuffer MatrixesConstantBuffer : register(b0)
     matrix Projection;
 };
 
-cbuffer angleBuf : register(b1)
+cbuffer angleConstantBuffer : register(b1)
 {
     float angle;
     float angle1;
@@ -15,15 +15,23 @@ cbuffer angleBuf : register(b1)
 
 float4 main(float4 pos : POSITION) : SV_POSITION
 {
+    float projectionCoeff = 0.25 / pos.z; 
+    float4x4 mProj = {
+        projectionCoeff, 0, 0, 0,
+        0, projectionCoeff, 0, 0,
+        0, 0, 1, 0,
+        0, 0, 0, 1
+    };
+
     float4 newPos;
 
-newPos.x = pos.x * cos(angle) - pos.y * sin(angle);
-newPos.y = pos.x * sin(angle) + pos.y * cos(angle);
-newPos.z = pos.z;
-newPos.w = pos.w;
+    newPos.x = pos.x * cos(angle) - (pos.z - 0.5) * sin(angle);
+    newPos.y = pos.y;
+    newPos.z = 0.5 + pos.x * sin(angle) + (pos.z - 0.5) * cos(angle);
+    newPos.w = pos.w;
 
-newPos = mul(newPos, World); 
-newPos = mul(newPos, View); 
-newPos = mul(newPos, Projection);
+    newPos = mul(newPos, mProj);
+    newPos.x = newPos.x * 0.75;
+
 	return newPos;
 }
