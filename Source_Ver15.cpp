@@ -34,7 +34,8 @@ struct ConstantBuffer {
 	D3DMATRIX mProjection;  // Матрица проекции
 };
 
-struct AngleCB {
+// структура угла
+struct AngleConstantBuffer {
 	float angle0;
 	float angle1;
 	float angle2;
@@ -61,7 +62,7 @@ ID3D11Buffer* pConstantBuffer = NULL; // констнантный буфер
 ID3D11Buffer* pIndexBuffer = NULL; // буфер индексов
 ID3D11Buffer* pAngleBuffer = NULL; // буфер угла 
 ID3D11Buffer* constantBufferArray[] = {NULL, NULL};
-AngleCB angleCBufferData = { 0.0f, 0.0f, 0.0f, 0.0f }; // угол поворота
+AngleConstantBuffer angleCBufferData = { 0.0f, 0.0f, 0.0f, 0.0f }; // угол поворота
 ID3D11ShaderResourceView* pAngleBufferVSResource = NULL; // ресурс вершинного шейдера, к оторм находится угол
 
 //ПРЕДВАРИТЕЛЬНЫЕ ОБЪЯВЛЕНИЯ ФУНКЦИЙ
@@ -106,10 +107,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 	// массив вершин (пирамида)
 	Vertex* vertexArray = new Vertex[]{
-		Vertex{D3DVECTOR{0.0f, 0.5f, 0.0f}, D3DXCOLOR{0.0f, 0.0f, 0.0f, 0.0f}}, // a
-		Vertex{D3DVECTOR{0.5f, 0.0f, 0.0f}, D3DXCOLOR{0.0f, 0.0f, 0.0f, 0.0f}}, //b
-		Vertex{D3DVECTOR{0.0f, -0.5f, 0.5f}, D3DXCOLOR{0.0f, 0.0f, 0.0f, 0.0f}}, //c
-		Vertex{D3DVECTOR{-0.5f, 0.0f, 0.0f}, D3DXCOLOR{0.0f, 0.0f, 0.0f, 0.0f}} //d
+		Vertex{D3DVECTOR{0.0f, 0.5f, 0.25f}, D3DXCOLOR{0.0f, 0.0f, 0.0f, 0.0f}}, // a 0
+		Vertex{D3DVECTOR{0.25f, 0.0f, 0.25f}, D3DXCOLOR{0.0f, 0.0f, 0.0f, 0.0f}}, //b 1
+		Vertex{D3DVECTOR{0.0f, -0.3f, 0.75f}, D3DXCOLOR{0.0f, 0.0f, 0.0f, 0.0f}}, //c 2
+		Vertex{D3DVECTOR{-0.25f, 0.0f, 0.25f}, D3DXCOLOR{0.0f, 0.0f, 0.0f, 0.0f}} //d 3
 	};
 
 	// создание буфера вершин, компиляция шейдеров, связывание шейдеров и буфера вершин с конвейером
@@ -123,11 +124,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	vertexArray = NULL;
 
 	// индексы вершин
-	WORD indices[] = {
-		0, 1, 2, //abc
-		3, 0, 2, //dac
-		1, 2, 3, //cbd (невидимая грань)
-		0, 1, 3 //bad (невидимая грань)
+	// обход по часвой стрелеке относительно нормали к поверхности, которую нужно показать
+	WORD indices[] = { 
+		0, 2, 1, //acb
+		0, 3, 2, //adc 
+		1, 2, 3, //dcb 
+		0, 1, 3 //abd 
 	};
 
 	hr = InitMatrixes(indices);
@@ -344,12 +346,11 @@ HRESULT MyCreateWindow(CONST WCHAR* wndClassNameParam, CONST WCHAR* wndNameParam
 };
 
 void UpdateScene() {
-
 	if (angleCBufferData.angle0 >= XM_2PI) {
 		angleCBufferData.angle0 = angleCBufferData.angle0 - XM_2PI;
 	}
+	angleCBufferData.angle0 += 0.00003f;
 
-	angleCBufferData.angle0 = angleCBufferData.angle0 + XM_2PI*0,5;
 	/*
 	D3D11_MAPPED_SUBRESOURCE angleCBufferUpdateData;
 	g_pImmediateContext->Map(pAngleBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &angleCBufferUpdateData);
@@ -357,7 +358,9 @@ void UpdateScene() {
 	g_pImmediateContext->Unmap(pAngleBuffer, 0);
 	*/
 
+	// обновление значений угла
 	g_pImmediateContext->UpdateSubresource(constantBufferArray[1], 0, NULL, &angleCBufferData, 0, 0); 
+	
 };
 
 void DrawScene() {
@@ -368,7 +371,7 @@ void DrawScene() {
 	g_pImmediateContext->ClearRenderTargetView(g_pRenderTargetView, backgroundColor);
 
 	// отрисовка примитивов 
-	g_pImmediateContext->DrawIndexed(6, 0, 0);
+	g_pImmediateContext->DrawIndexed(12, 0, 0);
 
 	// Вывод на дисплей поверхности Back Buffer
 	g_pSwapChain->Present(0, 0);
@@ -465,18 +468,18 @@ HRESULT InitGeometry(Vertex* vertexArray, LPCWSTR vertexShaderName, LPCWSTR pixe
 	hr = g_pd3dDevice->CreateVertexShader(VS_Buffer->GetBufferPointer(), VS_Buffer->GetBufferSize(), NULL, &g_pVertexShader);
 	// создание объекта пиксельного шейдера
 	hr = g_pd3dDevice->CreatePixelShader(PS_Buffer->GetBufferPointer(), PS_Buffer->GetBufferSize(), NULL, &g_pPixelShader);
-
+	
 	// привязка вершинного шейдера к конвейеру
 	g_pImmediateContext->VSSetShader(g_pVertexShader, NULL, NULL);
 	// привязка пиксельного шейдера к конвейеру
 	g_pImmediateContext->PSSetShader(g_pPixelShader, NULL, NULL);
-
+	
 	// Описание Input-Layout Object
 	D3D11_INPUT_ELEMENT_DESC layout[] = {
 		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
 		{"COLOR", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0}
 	};
-
+	
 	// Количество элементов в Input-Layout Object
 	UINT numInputLayoutObject = sizeof(layout) / sizeof(D3D11_INPUT_ELEMENT_DESC);
 
@@ -507,9 +510,13 @@ HRESULT InitMatrixes(WORD* indices) {
 		return hr;
 	}
 
+	XMMATRIX matProjection{
+
+	};
+
 	// описание буфера угла
 	D3D11_BUFFER_DESC angleBufferDesc;
-	angleBufferDesc.ByteWidth = sizeof(AngleCB);
+	angleBufferDesc.ByteWidth = sizeof(AngleConstantBuffer);
 	angleBufferDesc.Usage = D3D11_USAGE_DEFAULT;
 	angleBufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 	angleBufferDesc.CPUAccessFlags = 0;
