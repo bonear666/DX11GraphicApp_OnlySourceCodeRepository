@@ -28,7 +28,7 @@ struct ShaderModelDesc {
 };
 
 //
-struct ConstantBuffer {
+struct MatricesBuffer {
 	D3DMATRIX mWorld;              // Матрица мира
 	D3DMATRIX mView;        // Матрица вида
 	D3DMATRIX mProjection;  // Матрица проекции
@@ -83,10 +83,12 @@ void DrawScene();
 void ReleaseObjects();
 // компиляция шейдера
 HRESULT CompileShader(LPCWSTR srcName, LPCSTR entryPoint, LPCSTR target, ID3DBlob** buffer);
-// Инициализация матриц
-HRESULT InitMatrixes(WORD* indices);   
+// Создание константного буфера матриц, константного буфера угла, буфера вершин
+HRESULT InitMatrices(WORD* indices);   
 // Обновление матриц
-void SetMatrixes();
+void SetMatrices();
+// Обновление проекционной матрицы (0 < angle < PI/2)
+void SetProjectionMatrix(MatricesBuffer* pMatricesBuffer, FLOAT angle);
 
 // Главная функция, точка входа
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd) {
@@ -132,10 +134,16 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		0, 1, 3 //abd 
 	};
 
-	hr = InitMatrixes(indices);
+	// Создание константного буфера матриц, константного буфера угла, буфера вершин
+	hr = InitMatrices(indices);
 	if (FAILED(hr)) {
 		return hr;
 	}
+
+	// инициализация матриц
+	MatricesBuffer matricesWVP;
+	ZeroMemory(&matricesWVP, sizeof(MatricesBuffer));
+	SetProjectionMatrix(&matricesWVP, XM_PI / 20.0f);
 
 	MSG msg;// структура, описывающая сообщение
 	ZeroMemory(&msg, sizeof(MSG));
@@ -492,12 +500,12 @@ HRESULT InitGeometry(Vertex* vertexArray, LPCWSTR vertexShaderName, LPCWSTR pixe
 	return S_OK;
 }
 
-HRESULT InitMatrixes(WORD* indices) {
+HRESULT InitMatrices(WORD* indices) {
 	HRESULT hr;
 
 	// описание константного буфера матриц
 	D3D11_BUFFER_DESC constantBufferDesc;
-	constantBufferDesc.ByteWidth = sizeof(ConstantBuffer);
+	constantBufferDesc.ByteWidth = sizeof(MatricesBuffer);
 	constantBufferDesc.Usage = D3D11_USAGE_DEFAULT;
 	constantBufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 	constantBufferDesc.CPUAccessFlags = 0;
@@ -509,10 +517,6 @@ HRESULT InitMatrixes(WORD* indices) {
 	if (FAILED(hr)) {
 		return hr;
 	}
-
-	XMMATRIX matProjection{
-
-	};
 
 	// описание буфера угла
 	D3D11_BUFFER_DESC angleBufferDesc;
@@ -579,7 +583,24 @@ HRESULT InitMatrixes(WORD* indices) {
 	g_pImmediateContext->IASetIndexBuffer(pIndexBuffer, DXGI_FORMAT_R16_UINT, 0);
 
 	return S_OK;
-}
+};
+
+void SetProjectionMatrix(MatricesBuffer* pMatricesBuffer, FLOAT angle) {
+	// (0 < angle < PI/2) => (0 < tg(angle) < +inf) => (0 < newCoeff < 1)
+
+	FLOAT sinAngle;
+	FLOAT cosAngle;
+	XMScalarSinCos(&sinAngle, &cosAngle, angle);
+
+	FLOAT tangentAngle = sinAngle / cosAngle;
+	FLOAT newCoeff = 1.0f / (1.0f + tangentAngle);
+	pMatricesBuffer->mProjection._11 = newCoeff;
+	pMatricesBuffer->mProjection._22 = newCoeff;
+	pMatricesBuffer->mProjection._33 = 1.0f;
+	pMatricesBuffer->mProjection._44 = 1.0f;
+
+	g_pImmediateContext->UpdateSubresource(constantBufferArray[0], 0, 0, pMatricesBuffer, 0, 0);
+};
 
 void ReleaseObjects() {
 	if (pIndexBuffer != NULL) {
