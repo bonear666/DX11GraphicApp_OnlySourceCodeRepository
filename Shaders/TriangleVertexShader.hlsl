@@ -24,7 +24,6 @@ float4 main(float4 pos : POSITION) : SV_POSITION
     newPos.w = pos.w;
 
     newPos = mul(newPos, projection);
-    newPos.x = newPos.x * 0.75;
 
 	return newPos;
 }
