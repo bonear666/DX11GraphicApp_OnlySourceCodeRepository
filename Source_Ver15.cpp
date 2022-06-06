@@ -89,6 +89,8 @@ HRESULT InitMatrices(WORD* indices);
 void SetMatrices();
 // Обновление проекционной матрицы (0 < angle < PI/2)
 void SetProjectionMatrix(MatricesBuffer* pMatricesBuffer, FLOAT angle);
+// Сохранение пропорций объектов, при выводе в окно
+void SaveProportions(MatricesBuffer* pMatricesBuffer, HWND hWnd);
 
 // Главная функция, точка входа
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd) {
@@ -144,6 +146,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	MatricesBuffer matricesWVP;
 	ZeroMemory(&matricesWVP, sizeof(MatricesBuffer));
 	SetProjectionMatrix(&matricesWVP, XM_PI / 20.0f);
+
+	// сохранение пропорций объектов, при отображении в окно
+	SaveProportions(&matricesWVP, g_hWnd);
 
 	MSG msg;// структура, описывающая сообщение
 	ZeroMemory(&msg, sizeof(MSG));
@@ -600,6 +605,29 @@ void SetProjectionMatrix(MatricesBuffer* pMatricesBuffer, FLOAT angle) {
 	pMatricesBuffer->mProjection._44 = 1.0f;
 
 	g_pImmediateContext->UpdateSubresource(constantBufferArray[0], 0, 0, pMatricesBuffer, 0, 0);
+};
+
+void SaveProportions(MatricesBuffer* pMatricesBuffer, HWND hWnd) {
+	RECT rectangle;
+	FLOAT windowWidth;
+	FLOAT windowHeight;
+	FLOAT windowCoeff;
+
+	GetClientRect(hWnd, &rectangle);
+	windowWidth = rectangle.right - rectangle.left;
+	windowHeight = rectangle.bottom - rectangle.top;
+
+	windowCoeff = windowHeight / windowWidth;
+
+	if (windowCoeff >= 1.0f) {
+		pMatricesBuffer->mProjection._22 *= windowCoeff;
+		g_pImmediateContext->UpdateSubresource(constantBufferArray[0], 0, 0, pMatricesBuffer, 0, 0);
+	}
+	else
+	{
+		pMatricesBuffer->mProjection._11 *= windowCoeff;
+		g_pImmediateContext->UpdateSubresource(constantBufferArray[0], 0, 0, pMatricesBuffer, 0, 0);
+	}
 };
 
 void ReleaseObjects() {
