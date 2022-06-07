@@ -87,10 +87,12 @@ HRESULT CompileShader(LPCWSTR srcName, LPCSTR entryPoint, LPCSTR target, ID3DBlo
 HRESULT InitMatrices(WORD* indices);   
 // Обновление матриц
 void SetMatrices();
-// Обновление проекционной матрицы (0 < angle < PI/2)
-void SetProjectionMatrix(MatricesBuffer* pMatricesBuffer, FLOAT angle);
-// Сохранение пропорций объектов, при выводе в окно
+// Обновление проекционной матрицы (0 < angle < PI/2). angle = fov/2
+void SetProjectionMatrix(MatricesBuffer* pMatricesBuffer, FLOAT angleHoriz, FLOAT angleVert, BOOL saveProportionsFlag);
+// Сохранение пропорций объектов, при выводе в окно. Пропорции сохраняются в соответствии с осью, у которой меньше единичный отрезок. 
 void SaveProportions(MatricesBuffer* pMatricesBuffer, HWND hWnd);
+// Наибольший элемент
+FLOAT maxElement(FLOAT arg0, FLOAT arg1);
 
 // Главная функция, точка входа
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd) {
@@ -98,13 +100,13 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	HRESULT hr;
 
 	// СОЗДАНИЕ ОКНА
-	hr = MyCreateWindow(L"DX11GraphicApp", L"GraphicApp", 800, 600, hInstance, nShowCmd);
+	hr = MyCreateWindow(L"DX11GraphicApp", L"GraphicApp", 1920, 800, hInstance, nShowCmd);
 	if (FAILED(hr)) {
 		return hr;
 	}
 
 	//ИНИЦИАЛИЗАЦИЯ DirectX КОМПОНЕНТОВ	
-	hr = CreateDirect3DComponents(800, 600);
+	hr = CreateDirect3DComponents(1920, 800);
 	if (FAILED(hr)) {
 		return hr;
 	}
@@ -145,10 +147,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	// инициализация матриц
 	MatricesBuffer matricesWVP;
 	ZeroMemory(&matricesWVP, sizeof(MatricesBuffer));
-	SetProjectionMatrix(&matricesWVP, XM_PI / 20.0f);
-
-	// сохранение пропорций объектов, при отображении в окно
-	SaveProportions(&matricesWVP, g_hWnd);
+	SetProjectionMatrix(&matricesWVP, XM_PI / 5.0f, XM_PI / 25.0f, true);
 
 	MSG msg;// структура, описывающая сообщение
 	ZeroMemory(&msg, sizeof(MSG));
@@ -590,21 +589,41 @@ HRESULT InitMatrices(WORD* indices) {
 	return S_OK;
 };
 
-void SetProjectionMatrix(MatricesBuffer* pMatricesBuffer, FLOAT angle) {
+void SetProjectionMatrix(MatricesBuffer* pMatricesBuffer, FLOAT angleHoriz, FLOAT angleVert, BOOL saveProportionsFlag) {
 	// (0 < angle < PI/2) => (0 < tg(angle) < +inf) => (0 < newCoeff < 1)
 
 	FLOAT sinAngle;
 	FLOAT cosAngle;
-	XMScalarSinCos(&sinAngle, &cosAngle, angle);
+	FLOAT tangentAngle;
+	FLOAT newCoeff;
 
-	FLOAT tangentAngle = sinAngle / cosAngle;
-	FLOAT newCoeff = 1.0f / (1.0f + tangentAngle);
-	pMatricesBuffer->mProjection._11 = newCoeff;
-	pMatricesBuffer->mProjection._22 = newCoeff;
-	pMatricesBuffer->mProjection._33 = 1.0f;
-	pMatricesBuffer->mProjection._44 = 1.0f;
+	if (saveProportionsFlag == false) {
+		XMScalarSinCos(&sinAngle, &cosAngle, angleHoriz);
+		tangentAngle = sinAngle / cosAngle;
+		newCoeff = 1.0f / (1.0f + tangentAngle);
+		pMatricesBuffer->mProjection._11 = newCoeff;
 
-	g_pImmediateContext->UpdateSubresource(constantBufferArray[0], 0, 0, pMatricesBuffer, 0, 0);
+		XMScalarSinCos(&sinAngle, &cosAngle, angleVert);
+		tangentAngle = sinAngle / cosAngle;
+		newCoeff = 1.0f / (1.0f + tangentAngle);
+		pMatricesBuffer->mProjection._22 = newCoeff;
+
+		pMatricesBuffer->mProjection._33 = 1.0f;
+		pMatricesBuffer->mProjection._44 = 1.0f;
+
+		g_pImmediateContext->UpdateSubresource(constantBufferArray[0], 0, 0, pMatricesBuffer, 0, 0);
+	}
+	else {
+		XMScalarSinCos(&sinAngle, &cosAngle, maxElement(angleHoriz, angleVert));
+		tangentAngle = sinAngle / cosAngle;
+		newCoeff = 1.0f / (1.0f + tangentAngle);
+		pMatricesBuffer->mProjection._11 = newCoeff;
+		pMatricesBuffer->mProjection._22 = newCoeff;
+		pMatricesBuffer->mProjection._33 = 1.0f;
+		pMatricesBuffer->mProjection._44 = 1.0f;
+
+		SaveProportions(pMatricesBuffer, g_hWnd);
+	}
 };
 
 void SaveProportions(MatricesBuffer* pMatricesBuffer, HWND hWnd) {
@@ -620,14 +639,21 @@ void SaveProportions(MatricesBuffer* pMatricesBuffer, HWND hWnd) {
 	windowCoeff = windowHeight / windowWidth;
 
 	if (windowCoeff >= 1.0f) {
-		pMatricesBuffer->mProjection._22 *= windowCoeff;
-		g_pImmediateContext->UpdateSubresource(constantBufferArray[0], 0, 0, pMatricesBuffer, 0, 0);
+		pMatricesBuffer->mProjection._22 *=  1 / windowCoeff;
 	}
 	else
 	{
 		pMatricesBuffer->mProjection._11 *= windowCoeff;
-		g_pImmediateContext->UpdateSubresource(constantBufferArray[0], 0, 0, pMatricesBuffer, 0, 0);
 	}
+
+	g_pImmediateContext->UpdateSubresource(constantBufferArray[0], 0, 0, pMatricesBuffer, 0, 0);
+};
+
+FLOAT maxElement(FLOAT arg0, FLOAT arg1) {
+	if (arg0 >= arg1) {
+		return arg0;
+	}
+	return arg1;
 };
 
 void ReleaseObjects() {
