@@ -13,10 +13,14 @@ cbuffer angleConstantBuffer : register(b1)
     float angle3;
 };
 
-float4 main(float4 pos : POSITION) : SV_POSITION
+struct VS_OUTPUT {
+    float4 outPos : SV_POSITION;
+    float4 outColor : COLOR;
+};
+
+VS_OUTPUT main(float4 pos : POSITION, float4 color : COLOR) 
 {
     float4 newPos;
-
     // поворот вокруг точки 
     newPos.x = pos.x * cos(angle) - (pos.z - 0.5) * sin(angle);
     newPos.y = pos.y;
@@ -25,5 +29,8 @@ float4 main(float4 pos : POSITION) : SV_POSITION
 
     newPos = mul(newPos, projection);
 
-	return newPos;
+    VS_OUTPUT output;
+    output.outPos = newPos;
+    output.outColor = color;
+    return output;
 }
