@@ -64,6 +64,8 @@ ID3D11Buffer* pAngleBuffer = NULL; // буфер угла
 ID3D11Buffer* constantBufferArray[] = {NULL, NULL};
 AngleConstantBuffer angleCBufferData = { 0.0f, 0.0f, 0.0f, 0.0f }; // угол поворота
 ID3D11ShaderResourceView* pAngleBufferVSResource = NULL; // ресурс вершинного шейдера, к оторм находитс€ угол
+ID3D11Texture2D* depthStencilTexture = NULL; 
+ID3D11DepthStencilView* g_pDepthStencilView = NULL;
 
 //ѕ–≈ƒ¬ј–»“≈Ћ№Ќџ≈ ќЅЏя¬Ћ≈Ќ»я ‘”Ќ ÷»…
 
@@ -113,10 +115,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 	// массив вершин (пирамида)
 	Vertex* vertexArray = new Vertex[]{
-		Vertex{D3DVECTOR{0.0f, 0.5f, 0.25f}, D3DXCOLOR{0.0f, 0.0f, 0.0f, 0.0f}}, // a 0
-		Vertex{D3DVECTOR{0.25f, 0.0f, 0.25f}, D3DXCOLOR{0.0f, 0.0f, 0.0f, 0.0f}}, //b 1
-		Vertex{D3DVECTOR{0.0f, -0.3f, 0.75f}, D3DXCOLOR{0.0f, 0.0f, 0.0f, 0.0f}}, //c 2
-		Vertex{D3DVECTOR{-0.25f, 0.0f, 0.25f}, D3DXCOLOR{0.0f, 0.0f, 0.0f, 0.0f}} //d 3
+		Vertex{D3DVECTOR{0.0f, 0.5f, 0.25f}, D3DXCOLOR{1.0f, 0.0f, 0.0f, 1.0f}}, // a 0
+		Vertex{D3DVECTOR{0.25f, 0.0f, 0.25f}, D3DXCOLOR{1.0f, 1.0f, 0.0f, 1.0f}}, //b 1
+		Vertex{D3DVECTOR{0.0f, -0.3f, 0.75f}, D3DXCOLOR{0.0f, 0.0f, 0.0f, 1.0f}}, //c 2
+		Vertex{D3DVECTOR{-0.25f, 0.0f, 0.25f}, D3DXCOLOR{1.0f, 0.0f, 1.0f, 1.0f}} //d 3
 	};
 
 	// создание буфера вершин, компил€ци€ шейдеров, св€зывание шейдеров и буфера вершин с конвейером
@@ -130,12 +132,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	vertexArray = NULL;
 
 	// индексы вершин
-	// обход по часвой стрелеке относительно нормали к поверхности, которую нужно показать
+	// обход по часовой стрелеке относительно нормали к поверхности, которую нужно показать
 	WORD indices[] = { 
-		0, 2, 1, //acb
-		0, 3, 2, //adc 
-		1, 2, 3, //dcb 
-		0, 1, 3 //abd 
+		0, 1, 2, //abс видима€ грань
+		0, 2, 3, //aсd видима€ грань
+		3, 2, 1, //dcb невидима€ грань
+		0, 3, 1 //adb  невидима€ грань
 	};
 
 	// —оздание константного буфера матриц, константного буфера угла, буфера вершин
@@ -306,6 +308,12 @@ createDeviceDeviceContextSwapChainLoopExit:
 
 	// —в€зывание view port с графическим конвейером
 	g_pImmediateContext->RSSetViewports(1, &viewPort);
+
+	// ќписание depth stencil буфера
+	D3D11_TEXTURE2D_DESC depthStencilDesc;
+	depthStencilDesc.Width = widthParam;
+	depthStencilDesc.Height = heightParam;
+
 
 	// ѕрив€зка RTV к Output-Merger Stage
 	g_pImmediateContext->OMSetRenderTargets(1, &g_pRenderTargetView, NULL);
