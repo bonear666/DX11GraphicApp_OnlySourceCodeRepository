@@ -64,8 +64,8 @@ ID3D11Buffer* pAngleBuffer = NULL; // буфер угла
 ID3D11Buffer* constantBufferArray[] = {NULL, NULL};
 AngleConstantBuffer angleCBufferData = { 0.0f, 0.0f, 0.0f, 0.0f }; // угол поворота
 ID3D11ShaderResourceView* pAngleBufferVSResource = NULL; // ресурс вершинного шейдера, к оторм находитс€ угол
-ID3D11Texture2D* depthStencilTexture = NULL; 
-ID3D11DepthStencilView* g_pDepthStencilView = NULL;
+ID3D11Texture2D* depthStencilTexture = NULL; // текстура depth буфера
+ID3D11DepthStencilView* g_pDepthStencilView = NULL; // ресурсы depth буфера
 
 //ѕ–≈ƒ¬ј–»“≈Ћ№Ќџ≈ ќЅЏя¬Ћ≈Ќ»я ‘”Ќ ÷»…
 
@@ -134,10 +134,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	// индексы вершин
 	// обход по часовой стрелеке относительно нормали к поверхности, которую нужно показать
 	WORD indices[] = { 
-		0, 1, 2, //abс видима€ грань
-		0, 2, 3, //aсd видима€ грань
-		3, 2, 1, //dcb невидима€ грань
-		0, 3, 1 //adb  невидима€ грань
+		0, 1, 2, //abс видима€ грань (обход по часовой стрелке)
+		0, 2, 3, //aсd видима€ грань (обход по часовой стрелке)
+		3, 2, 1, //dcb невидима€ грань (обход против часовой стрелки)
+		0, 3, 1 //adb  невидима€ грань (обход против часовой стрелки)
 	};
 
 	// —оздание константного буфера матриц, константного буфера угла, буфера вершин
@@ -313,6 +313,18 @@ createDeviceDeviceContextSwapChainLoopExit:
 	D3D11_TEXTURE2D_DESC depthStencilDesc;
 	depthStencilDesc.Width = widthParam;
 	depthStencilDesc.Height = heightParam;
+	depthStencilDesc.MipLevels = 1;
+	depthStencilDesc.ArraySize = 1;
+	depthStencilDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+	depthStencilDesc.SampleDesc.Count = 1;
+	depthStencilDesc.SampleDesc.Quality = 0;
+	depthStencilDesc.Usage = D3D11_USAGE_DEFAULT;
+	depthStencilDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+	depthStencilDesc.CPUAccessFlags = 0;
+	depthStencilDesc.MiscFlags = 0;
+
+	// описание того, как будет выполн€тс€ z-test и stencil-test
+	D3D11_DEPTH_STENCIL_DESC dsDesc;
 
 
 	// ѕрив€зка RTV к Output-Merger Stage
