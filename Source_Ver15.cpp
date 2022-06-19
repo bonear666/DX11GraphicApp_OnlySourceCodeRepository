@@ -94,7 +94,9 @@ void SetProjectionMatrix(MatricesBuffer* pMatricesBuffer, FLOAT angleHoriz, FLOA
 // Сохранение пропорций объектов, при выводе в окно. Пропорции сохраняются в соответствии с осью, у которой меньше единичный отрезок. 
 void SaveProportions(MatricesBuffer* pMatricesBuffer, HWND hWnd);
 // Наибольший элемент
-FLOAT maxElement(FLOAT arg0, FLOAT arg1);
+FLOAT MaxElement(FLOAT arg0, FLOAT arg1);
+// Создание обратной матрицы
+void InvertMatrix();
 
 // Главная функция, точка входа
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd) {
@@ -634,7 +636,7 @@ void SetProjectionMatrix(MatricesBuffer* pMatricesBuffer, FLOAT angleHoriz, FLOA
 		g_pImmediateContext->UpdateSubresource(constantBufferArray[0], 0, 0, pMatricesBuffer, 0, 0);
 	}
 	else {
-		XMScalarSinCos(&sinAngle, &cosAngle, maxElement(angleHoriz, angleVert));
+		XMScalarSinCos(&sinAngle, &cosAngle, MaxElement(angleHoriz, angleVert));
 		tangentAngle = sinAngle / cosAngle;
 		newCoeff = 1.0f / (1.0f + tangentAngle);
 		pMatricesBuffer->mProjection._11 = newCoeff;
@@ -669,11 +671,87 @@ void SaveProportions(MatricesBuffer* pMatricesBuffer, HWND hWnd) {
 	g_pImmediateContext->UpdateSubresource(constantBufferArray[0], 0, 0, pMatricesBuffer, 0, 0);
 };
 
-FLOAT maxElement(FLOAT arg0, FLOAT arg1) {
+FLOAT MaxElement(FLOAT arg0, FLOAT arg1) {
 	if (arg0 >= arg1) {
 		return arg0;
 	}
 	return arg1;
+};
+
+HRESULT InvertMatrix(XMVECTOR zAxis, XMVECTOR yAxis, XMMATRIX* invertibleMatrixOutput) {
+	// проверка векторов на перпиндикулярность 
+	XMFLOAT4 dotProduct;
+	XMStoreFloat4(&dotProduct, XMVector3Dot(zAxis, yAxis));
+	if (dotProduct.x != 0.0f) {
+		return E_FAIL;
+	}
+
+	// нахождение новой оси X
+	XMVECTOR xAxis = XMVector3Cross(zAxis, yAxis); // правая тройка векторов
+
+	// матрица обратная обратной матрице, обычная матрица
+	XMVECTOR axisArray[] = {xAxis, yAxis, zAxis};
+
+	// единичная матрица
+	*invertibleMatrixOutput = {
+	 XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f),
+	 XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f),
+	 XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f),
+	 XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f)
+	};
+
+	// поиск обратной матрицы методом гаусса
+	for (size_t i = 0; i <= 2; ++i) {
+		float xAxisElement = XMVectorGetByIndex(xAxis, i);
+		if (xAxisElement != 0) {
+			XMVECTOR mulVector = (xAxis / xAxisElement) * -XMVectorGetByIndex(yAxis, i);
+			XMVECTOR invertMatrixMulVector = (invertibleMatrixOutput->r[0] / xAxisElement) * -XMVectorGetByIndex(yAxis, i);
+
+			// суммирование второй строки с первой
+			yAxis += mulVector;
+			invertibleMatrixOutput->r[1] += invertMatrixMulVector;
+			// суммирование третей строки с первой
+			zAxis += mulVector;
+			invertibleMatrixOutput->r[2] += invertMatrixMulVector;
+
+			break;
+		}
+	};
+	for (size_t i = 0; i <= 2; ++i) {
+		float yAxisElement = XMVectorGetByIndex(yAxis, i);
+		if (yAxisElement != 0) {
+			XMVECTOR mulVector = (yAxis / yAxisElement) * -XMVectorGetByIndex(zAxis, i);
+			XMVECTOR invertMatrixMulVector = (invertibleMatrixOutput->r[1] / yAxisElement) * -XMVectorGetByIndex(zAxis, i);
+
+			// суммирование третей строки со второй
+			zAxis += mulVector;
+			invertibleMatrixOutput->r[2] += invertMatrixMulVector;
+
+			break;
+		}
+	};
+	for (size_t i = 0; i <= 2; ++i) {
+		float zAxisElement = XMVectorGetByIndex(zAxis, i);
+		if (zAxisElement != 0) {
+			zAxis /= zAxisElement;
+			invertibleMatrixOutput->r[2] /= zAxisElement;
+
+			XMVECTOR mulVector = yAxis * -XMVectorGetByIndex(yAxis, i);
+			XMVECTOR invertMatrixMulVector = invertibleMatrixOutput->r[2] * -XMVectorGetByIndex(yAxis, i);
+
+			// суммирование третей строки со второй
+			yAxis += mulVector;
+			invertibleMatrixOutput->r[1] += invertMatrixMulVector;
+
+			// суммирование третей строки с первой
+			xAxis += mulVector;
+			invertibleMatrixOutput->r[0] += invertMatrixMulVector;
+
+			break;
+		}
+	};
+
+	return S_OK;
 };
 
 void ReleaseObjects() {
