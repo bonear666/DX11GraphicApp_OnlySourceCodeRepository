@@ -688,9 +688,13 @@ HRESULT InvertMatrix(XMVECTOR zAxis, XMVECTOR yAxis, XMMATRIX* invertibleMatrixO
 
 	// нахождение новой оси X
 	XMVECTOR xAxis = XMVector3Cross(zAxis, yAxis); // правая тройка векторов
+	// векторы линейно независимы, значит можно искать обратную матрицу
 
 	// матрица обратная обратной матрице, обычная матрица
 	XMVECTOR axisArray[] = {xAxis, yAxis, zAxis};
+
+	// порядок строк в обратной матрице, который получился в результате поиска обратной матрицы
+	int invertibleMatrixRowsOrder[3];
 
 	// единичная матрица
 	*invertibleMatrixOutput = {
@@ -699,57 +703,63 @@ HRESULT InvertMatrix(XMVECTOR zAxis, XMVECTOR yAxis, XMMATRIX* invertibleMatrixO
 	 XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f),
 	 XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f)
 	};
+	//---
+	for (size_t axisIndex = 0; axisIndex <= 1; ++axisIndex) { // обход вниз по строкам обычной матрицы
+		for (size_t i = 0; i <= 2; ++i) { // обход по координатам строки обычной матицы
+			float axisElement = XMVectorGetByIndex(axisArray[axisIndex], i);
+			if (axisElement != 0) {
+				for (size_t nextAxisIndex = axisIndex + 1; nextAxisIndex <= 2; ++nextAxisIndex) { // прибавление строки к другим строкам
+					XMVECTOR mulVector = (axisArray[axisIndex] / axisElement) * -XMVectorGetByIndex(axisArray[nextAxisIndex], i);
+					XMVECTOR invertMatrixMulVector = (invertibleMatrixOutput->r[axisIndex] / axisElement) * -XMVectorGetByIndex(axisArray[nextAxisIndex], i);
 
+					axisArray[nextAxisIndex] += mulVector;
+					invertibleMatrixOutput->r[nextAxisIndex] += invertMatrixMulVector;
+				}
+				break;
+			}
+		}
+	};
+	for (size_t axisIndex = 2; axisIndex >= 1; --axisIndex) { // обход вверх по строкам обычной матрицы
+		for (size_t i = 0; i <= 2; ++i) { // обход по координатам строки обычной матицы
+			float axisElement = XMVectorGetByIndex(axisArray[axisIndex], i);
+			if (axisElement != 0) {
+				axisArray[axisIndex] /= axisElement;
+				invertibleMatrixOutput->r[axisIndex] /= axisElement;
+				invertibleMatrixRowsOrder[axisIndex] = i;
+
+				for (size_t nextAxisIndex = axisIndex - 1; nextAxisIndex < UINT_MAX; --nextAxisIndex) { // прибавление строки к другим строкам
+					XMVECTOR mulVector = (axisArray[axisIndex] / axisElement) * -XMVectorGetByIndex(axisArray[nextAxisIndex], i);
+					XMVECTOR invertMatrixMulVector = (invertibleMatrixOutput->r[axisIndex] / axisElement) * -XMVectorGetByIndex(axisArray[nextAxisIndex], i);
+
+					axisArray[nextAxisIndex] += mulVector;
+					invertibleMatrixOutput->r[nextAxisIndex] += invertMatrixMulVector;
+				}
+				break;
+			}
+		}
+	};
+	{
+		for (size_t i = 0; i <= 2; ++i) { // обход первой строки обычной матрицы
+			float axisElement = XMVectorGetByIndex(axisArray[0], i);
+			if (axisElement != 0) {
+				axisArray[0] /= axisElement;
+				invertibleMatrixOutput->r[0] /= axisElement;
+				invertibleMatrixRowsOrder[0] = i;
+				break;
+			}
+		};
+	};
+
+	//преобразование обратной матрицы к правильному порядку строк
+	XMVECTOR oldVector;
+	for (int i = 0; i <= 2; ++i) {
+		if (invertibleMatrixRowsOrder[i] != i) {
+			oldVector = invertibleMatrixOutput->r[invertibleMatrixRowsOrder[i]];
+
+		}
+	}
+	//---
 	// поиск обратной матрицы методом гаусса
-	for (size_t i = 0; i <= 2; ++i) {
-		float xAxisElement = XMVectorGetByIndex(xAxis, i);
-		if (xAxisElement != 0) {
-			XMVECTOR mulVector = (xAxis / xAxisElement) * -XMVectorGetByIndex(yAxis, i);
-			XMVECTOR invertMatrixMulVector = (invertibleMatrixOutput->r[0] / xAxisElement) * -XMVectorGetByIndex(yAxis, i);
-
-			// суммирование второй строки с первой
-			yAxis += mulVector;
-			invertibleMatrixOutput->r[1] += invertMatrixMulVector;
-			// суммирование третей строки с первой
-			zAxis += mulVector;
-			invertibleMatrixOutput->r[2] += invertMatrixMulVector;
-
-			break;
-		}
-	};
-	for (size_t i = 0; i <= 2; ++i) {
-		float yAxisElement = XMVectorGetByIndex(yAxis, i);
-		if (yAxisElement != 0) {
-			XMVECTOR mulVector = (yAxis / yAxisElement) * -XMVectorGetByIndex(zAxis, i);
-			XMVECTOR invertMatrixMulVector = (invertibleMatrixOutput->r[1] / yAxisElement) * -XMVectorGetByIndex(zAxis, i);
-
-			// суммирование третей строки со второй
-			zAxis += mulVector;
-			invertibleMatrixOutput->r[2] += invertMatrixMulVector;
-
-			break;
-		}
-	};
-	for (size_t i = 0; i <= 2; ++i) {
-		float zAxisElement = XMVectorGetByIndex(zAxis, i);
-		if (zAxisElement != 0) {
-			zAxis /= zAxisElement;
-			invertibleMatrixOutput->r[2] /= zAxisElement;
-
-			XMVECTOR mulVector = yAxis * -XMVectorGetByIndex(yAxis, i);
-			XMVECTOR invertMatrixMulVector = invertibleMatrixOutput->r[2] * -XMVectorGetByIndex(yAxis, i);
-
-			// суммирование третей строки со второй
-			yAxis += mulVector;
-			invertibleMatrixOutput->r[1] += invertMatrixMulVector;
-
-			// суммирование третей строки с первой
-			xAxis += mulVector;
-			invertibleMatrixOutput->r[0] += invertMatrixMulVector;
-
-			break;
-		}
-	};
 
 	return S_OK;
 };
