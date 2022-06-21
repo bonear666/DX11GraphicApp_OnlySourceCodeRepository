@@ -17,8 +17,8 @@
 
 // ќписание вершин
 struct Vertex {
-	D3DVECTOR position;
-	D3DXCOLOR color;
+	XMFLOAT4 position;
+	XMFLOAT4 color;
 };
 
 // модель шейдеров
@@ -29,9 +29,9 @@ struct ShaderModelDesc {
 
 //
 struct MatricesBuffer {
-	D3DMATRIX mWorld;              // ћатрица мира
-	D3DMATRIX mView;        // ћатрица вида
-	D3DMATRIX mProjection;  // ћатрица проекции
+	XMMATRIX mWorld;              // ћатрица мира
+	XMMATRIX mView;        // ћатрица вида
+	XMMATRIX mProjection;  // ћатрица проекции
 };
 
 // структура угла
@@ -96,7 +96,9 @@ void SaveProportions(MatricesBuffer* pMatricesBuffer, HWND hWnd);
 // Ќаибольший элемент
 FLOAT MaxElement(FLOAT arg0, FLOAT arg1);
 // —оздание обратной матрицы
-void InvertMatrix();
+HRESULT InvertMatrix(XMVECTOR zAxis, XMVECTOR yAxis, XMMATRIX* invertibleMatrix);
+// —оздание матрицы перехода к другой системе координат
+HRESULT NewCoordinateSystemMatrix(XMVECTOR point, XMVECTOR zAxis, XMVECTOR yAxis, XMMATRIX* invertibleMatrix);
 
 // √лавна€ функци€, точка входа
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd) {
@@ -117,10 +119,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 	// массив вершин (пирамида)
 	Vertex* vertexArray = new Vertex[]{
-		Vertex{D3DVECTOR{0.0f, 0.5f, 0.25f}, D3DXCOLOR{1.0f, 0.0f, 0.0f, 1.0f}}, // a 0
-		Vertex{D3DVECTOR{0.25f, 0.0f, 0.25f}, D3DXCOLOR{1.0f, 1.0f, 0.0f, 1.0f}}, //b 1
-		Vertex{D3DVECTOR{0.0f, -0.3f, 0.75f}, D3DXCOLOR{0.0f, 0.0f, 0.0f, 1.0f}}, //c 2
-		Vertex{D3DVECTOR{-0.25f, 0.0f, 0.25f}, D3DXCOLOR{1.0f, 0.0f, 1.0f, 1.0f}} //d 3
+		Vertex{XMFLOAT4{0.0f, 0.5f, 0.25f, 1.0f}, XMFLOAT4{1.0f, 0.0f, 0.0f, 1.0f}}, // a 0
+		Vertex{XMFLOAT4{0.25f, 0.0f, 0.25f, 1.0f}, XMFLOAT4{1.0f, 1.0f, 0.0f, 1.0f}}, //b 1
+		Vertex{XMFLOAT4{0.0f, -0.3f, 0.75f, 1.0f}, XMFLOAT4{0.0f, 0.0f, 0.0f, 1.0f}}, //c 2
+		Vertex{XMFLOAT4{-0.25f, 0.0f, 0.25f, 1.0f}, XMFLOAT4{1.0f, 0.0f, 1.0f, 1.0f}} //d 3
 	};
 
 	// создание буфера вершин, компил€ци€ шейдеров, св€зывание шейдеров и буфера вершин с конвейером
@@ -151,6 +153,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	// инициализаци€ матриц
 	MatricesBuffer matricesWVP;
 	ZeroMemory(&matricesWVP, sizeof(MatricesBuffer));
+	//NewCoordinateSystemMatrix(XMVectorSet(0.0f, 5.0f, -2.0f, 1.0f), XMVectorSet(0.0f, 0.0f, 1.0f, 1.0f), XMVectorSet(0.0f, 1.0f, 0.0f, 1.0f), &matricesWVP.mView);
+	matricesWVP.mView = XMMatrixLookAtLH(XMVectorSet(0.0f, 2.0f, -2.0f, 1.0f), XMVectorSet(0.0f, 0.0f, 1.0f, 1.0f), XMVectorSet(0.0f, 1.0f, 0.0f, 1.0f));
 	SetProjectionMatrix(&matricesWVP, XM_PI / 5.0f, XM_PI / 25.0f, true);
 
 	MSG msg;// структура, описывающа€ сообщение
@@ -678,8 +682,8 @@ FLOAT MaxElement(FLOAT arg0, FLOAT arg1) {
 	return arg1;
 };
 
-HRESULT InvertMatrix(XMVECTOR zAxis, XMVECTOR yAxis, XMMATRIX* invertibleMatrixOutput) {
-	// проверка векторов на перпиндикул€рность 
+HRESULT InvertMatrix(XMVECTOR zAxis, XMVECTOR yAxis, XMMATRIX* invertibleMatrix) {
+	// проверка векторов на ортогональность 
 	XMFLOAT4 dotProduct;
 	XMStoreFloat4(&dotProduct, XMVector3Dot(zAxis, yAxis));
 	if (dotProduct.x != 0.0f) {
@@ -697,23 +701,24 @@ HRESULT InvertMatrix(XMVECTOR zAxis, XMVECTOR yAxis, XMMATRIX* invertibleMatrixO
 	int invertibleMatrixRowsOrder[3];
 
 	// единична€ матрица
-	*invertibleMatrixOutput = {
+	XMMATRIX invertibleMatrixOutput = {
 	 XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f),
 	 XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f),
 	 XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f),
 	 XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f)
 	};
-	//---
+
+	//поиск обратной матрицы методом гаусса
 	for (size_t axisIndex = 0; axisIndex <= 1; ++axisIndex) { // обход вниз по строкам обычной матрицы
 		for (size_t i = 0; i <= 2; ++i) { // обход по координатам строки обычной матицы
 			float axisElement = XMVectorGetByIndex(axisArray[axisIndex], i);
 			if (axisElement != 0) {
 				for (size_t nextAxisIndex = axisIndex + 1; nextAxisIndex <= 2; ++nextAxisIndex) { // прибавление строки к другим строкам
 					XMVECTOR mulVector = (axisArray[axisIndex] / axisElement) * -XMVectorGetByIndex(axisArray[nextAxisIndex], i);
-					XMVECTOR invertMatrixMulVector = (invertibleMatrixOutput->r[axisIndex] / axisElement) * -XMVectorGetByIndex(axisArray[nextAxisIndex], i);
+					XMVECTOR invertMatrixMulVector = (invertibleMatrixOutput.r[axisIndex] / axisElement) * -XMVectorGetByIndex(axisArray[nextAxisIndex], i);
 
 					axisArray[nextAxisIndex] += mulVector;
-					invertibleMatrixOutput->r[nextAxisIndex] += invertMatrixMulVector;
+					invertibleMatrixOutput.r[nextAxisIndex] += invertMatrixMulVector;
 				}
 				break;
 			}
@@ -724,15 +729,15 @@ HRESULT InvertMatrix(XMVECTOR zAxis, XMVECTOR yAxis, XMMATRIX* invertibleMatrixO
 			float axisElement = XMVectorGetByIndex(axisArray[axisIndex], i);
 			if (axisElement != 0) {
 				axisArray[axisIndex] /= axisElement;
-				invertibleMatrixOutput->r[axisIndex] /= axisElement;
+				invertibleMatrixOutput.r[axisIndex] /= axisElement;
 				invertibleMatrixRowsOrder[axisIndex] = i;
 
 				for (size_t nextAxisIndex = axisIndex - 1; nextAxisIndex < UINT_MAX; --nextAxisIndex) { // прибавление строки к другим строкам
-					XMVECTOR mulVector = (axisArray[axisIndex] / axisElement) * -XMVectorGetByIndex(axisArray[nextAxisIndex], i);
-					XMVECTOR invertMatrixMulVector = (invertibleMatrixOutput->r[axisIndex] / axisElement) * -XMVectorGetByIndex(axisArray[nextAxisIndex], i);
+					XMVECTOR mulVector = axisArray[axisIndex] * -XMVectorGetByIndex(axisArray[nextAxisIndex], i);
+					XMVECTOR invertMatrixMulVector = invertibleMatrixOutput.r[axisIndex] * -XMVectorGetByIndex(axisArray[nextAxisIndex], i);
 
 					axisArray[nextAxisIndex] += mulVector;
-					invertibleMatrixOutput->r[nextAxisIndex] += invertMatrixMulVector;
+					invertibleMatrixOutput.r[nextAxisIndex] += invertMatrixMulVector;
 				}
 				break;
 			}
@@ -743,7 +748,7 @@ HRESULT InvertMatrix(XMVECTOR zAxis, XMVECTOR yAxis, XMMATRIX* invertibleMatrixO
 			float axisElement = XMVectorGetByIndex(axisArray[0], i);
 			if (axisElement != 0) {
 				axisArray[0] /= axisElement;
-				invertibleMatrixOutput->r[0] /= axisElement;
+				invertibleMatrixOutput.r[0] /= axisElement;
 				invertibleMatrixRowsOrder[0] = i;
 				break;
 			}
@@ -751,15 +756,21 @@ HRESULT InvertMatrix(XMVECTOR zAxis, XMVECTOR yAxis, XMMATRIX* invertibleMatrixO
 	};
 
 	//преобразование обратной матрицы к правильному пор€дку строк
-	XMVECTOR oldVector;
 	for (int i = 0; i <= 2; ++i) {
-		if (invertibleMatrixRowsOrder[i] != i) {
-			oldVector = invertibleMatrixOutput->r[invertibleMatrixRowsOrder[i]];
+		invertibleMatrix->r[invertibleMatrixRowsOrder[i]] = invertibleMatrixOutput.r[i];
+	};
+	invertibleMatrix->r[3] = invertibleMatrixOutput.r[3];
 
-		}
+	return S_OK;
+};
+
+HRESULT NewCoordinateSystemMatrix(XMVECTOR point, XMVECTOR zAxis, XMVECTOR yAxis, XMMATRIX* invertibleMatrix) {
+	if (FAILED(InvertMatrix(zAxis, yAxis, invertibleMatrix))) {
+		return E_FAIL;
 	}
-	//---
-	// поиск обратной матрицы методом гаусса
+	// при умножении вершины на матрицу перехода к новой системе координат вычитаем начало координат новой системы координат
+	point *= -1.0f;
+	invertibleMatrix->r[3] = XMVectorSetByIndex(point, 1.0f, 3);
 
 	return S_OK;
 };
