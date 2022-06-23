@@ -153,7 +153,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	// инициализация матриц
 	MatricesBuffer matricesWVP;
 	ZeroMemory(&matricesWVP, sizeof(MatricesBuffer));
-	NewCoordinateSystemMatrix(XMVectorSet(0.0f, 1.0f, 0.0f, 1.0f), XMVectorSet(0.0f, 0.0f, 1.0f, 1.0f), XMVectorSet(XMScalarSin(XM_PI / 14.01f), XMScalarCos(XM_PI / 14.01f), 0.0f, 1.0f), &(matricesWVP.mView));
+	NewCoordinateSystemMatrix(XMVectorSet(1.7f, -1.3f, 0.0f, 1.0f), XMVectorSet(0.0f, 0.0f, 1.0f, 1.0f), XMVectorSet(XMScalarSin(XM_PI / 4.0f), XMScalarCos(XM_PI / 4.0f), 0.0f, 1.0f), &(matricesWVP.mView));
 	//matricesWVP.mView = XMMatrixLookAtLH(XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f), XMVectorSet(0.0f, 0.0f, 1.0f, 1.0f), XMVectorSet(XMScalarCos(XM_PI / 4.0f), XMScalarSin(XM_PI / 4.0f), 0.0f, 1.0f));
 	SetProjectionMatrix(&matricesWVP, XM_PI / 5.0f, XM_PI / 25.0f, true);
 
@@ -689,13 +689,13 @@ HRESULT InvertMatrix(XMVECTOR zAxis, XMVECTOR yAxis, XMMATRIX* invertibleMatrix)
 	if (dotProduct.x != 0.0f) {
 		return E_FAIL;
 	}
-
+	
 	// нахождение новой оси X
-	XMVECTOR xAxis = -XMVector3Cross(zAxis, yAxis); // правая тройка векторов
+	XMVECTOR xAxis = XMVector3Cross(yAxis, zAxis); // правая тройка векторов
 	// векторы линейно независимы, значит можно искать обратную матрицу
 
 	// матрица обратная обратной матрице, обычная матрица
-	XMVECTOR axisArray[] = {xAxis, yAxis, zAxis};
+	XMVECTOR axisArray[] = { xAxis, yAxis, zAxis };
 
 	// порядок строк в обратной матрице, который получился в результате поиска обратной матрицы
 	int invertibleMatrixRowsOrder[3];
@@ -713,28 +713,40 @@ HRESULT InvertMatrix(XMVECTOR zAxis, XMVECTOR yAxis, XMMATRIX* invertibleMatrix)
 		for (size_t i = 0; i <= 2; ++i) { // обход по координатам строки обычной матицы
 			float axisElement = XMVectorGetByIndex(axisArray[axisIndex], i);
 			if (axisElement != 0) {
+				axisArray[axisIndex] /= XMVectorSet(axisElement, axisElement, axisElement, axisElement);
+				invertibleMatrixOutput.r[axisIndex] /= XMVectorSet(axisElement, axisElement, axisElement, axisElement);
+				invertibleMatrixRowsOrder[axisIndex] = i;
+
 				for (size_t nextAxisIndex = axisIndex + 1; nextAxisIndex <= 2; ++nextAxisIndex) { // прибавление строки к другим строкам
-					XMVECTOR mulVector = (axisArray[axisIndex] / axisElement) * -XMVectorGetByIndex(axisArray[nextAxisIndex], i);
-					XMVECTOR invertMatrixMulVector = (invertibleMatrixOutput.r[axisIndex] / axisElement) * -XMVectorGetByIndex(axisArray[nextAxisIndex], i);
+					float nextAxisElement = XMVectorGetByIndex(axisArray[nextAxisIndex], i);
+					XMVECTOR mulVector = axisArray[axisIndex] * XMVectorSet(-nextAxisElement, -nextAxisElement, -nextAxisElement, -nextAxisElement); // вместо простого умножения axisArray[axisIndex] на -nextAxisElement приходится умножать на вектор, так как в ином случае возникает сильная погрешность
+					XMVECTOR invertMatrixMulVector = invertibleMatrixOutput.r[axisIndex] * XMVectorSet(-nextAxisElement, -nextAxisElement, -nextAxisElement, -nextAxisElement);
 
 					axisArray[nextAxisIndex] += mulVector;
 					invertibleMatrixOutput.r[nextAxisIndex] += invertMatrixMulVector;
 				}
 				break;
 			}
+		}
+	};
+	for (size_t i = 0; i <= 2; ++i) { // обход полседней строки обычной матрицы
+		float axisElement = XMVectorGetByIndex(axisArray[2], i);
+		if (axisElement != 0) {
+			axisArray[2] /= XMVectorSet(axisElement, axisElement, axisElement, axisElement);
+			invertibleMatrixOutput.r[2] /= XMVectorSet(axisElement, axisElement, axisElement, axisElement);
+			invertibleMatrixRowsOrder[2] = i;
+
+			break;
 		}
 	};
 	for (size_t axisIndex = 2; axisIndex >= 1; --axisIndex) { // обход вверх по строкам обычной матрицы
 		for (size_t i = 0; i <= 2; ++i) { // обход по координатам строки обычной матицы
 			float axisElement = XMVectorGetByIndex(axisArray[axisIndex], i);
 			if (axisElement != 0) {
-				axisArray[axisIndex] /= axisElement;
-				invertibleMatrixOutput.r[axisIndex] /= axisElement;
-				invertibleMatrixRowsOrder[axisIndex] = i;
-
 				for (size_t nextAxisIndex = axisIndex - 1; nextAxisIndex < UINT_MAX; --nextAxisIndex) { // прибавление строки к другим строкам
-					XMVECTOR mulVector = axisArray[axisIndex] * -XMVectorGetByIndex(axisArray[nextAxisIndex], i);
-					XMVECTOR invertMatrixMulVector = invertibleMatrixOutput.r[axisIndex] * -XMVectorGetByIndex(axisArray[nextAxisIndex], i);
+					float nextAxisElement = XMVectorGetByIndex(axisArray[nextAxisIndex], i);
+					XMVECTOR mulVector = axisArray[axisIndex] * XMVectorSet(-nextAxisElement, -nextAxisElement, -nextAxisElement, -nextAxisElement);
+					XMVECTOR invertMatrixMulVector = invertibleMatrixOutput.r[axisIndex] * XMVectorSet(-nextAxisElement, -nextAxisElement, -nextAxisElement, -nextAxisElement);
 
 					axisArray[nextAxisIndex] += mulVector;
 					invertibleMatrixOutput.r[nextAxisIndex] += invertMatrixMulVector;
@@ -742,17 +754,6 @@ HRESULT InvertMatrix(XMVECTOR zAxis, XMVECTOR yAxis, XMMATRIX* invertibleMatrix)
 				break;
 			}
 		}
-	};
-	{
-		for (size_t i = 0; i <= 2; ++i) { // обход первой строки обычной матрицы
-			float axisElement = XMVectorGetByIndex(axisArray[0], i);
-			if (axisElement != 0) {
-				axisArray[0] /= axisElement;
-				invertibleMatrixOutput.r[0] /= axisElement;
-				invertibleMatrixRowsOrder[0] = i;
-				break;
-			}
-		};
 	};
 
 	//преобразование обратной матрицы к правильному порядку строк
