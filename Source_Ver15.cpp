@@ -121,7 +121,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	Vertex* vertexArray = new Vertex[]{
 		Vertex{XMFLOAT4{0.0f, 0.5f, 0.25f, 1.0f}, XMFLOAT4{1.0f, 0.0f, 0.0f, 1.0f}}, // a 0
 		Vertex{XMFLOAT4{0.25f, 0.0f, 0.25f, 1.0f}, XMFLOAT4{1.0f, 1.0f, 0.0f, 1.0f}}, //b 1
-		Vertex{XMFLOAT4{0.0f, -0.3f, 0.75f, 1.0f}, XMFLOAT4{0.0f, 0.0f, 0.0f, 1.0f}}, //c 2
+		Vertex{XMFLOAT4{0.0f, 0.0f, 0.75f, 1.0f}, XMFLOAT4{0.0f, 0.0f, 0.0f, 1.0f}}, //c 2
 		Vertex{XMFLOAT4{-0.25f, 0.0f, 0.25f, 1.0f}, XMFLOAT4{1.0f, 0.0f, 1.0f, 1.0f}} //d 3
 	};
 
@@ -153,8 +153,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	// инициализация матриц
 	MatricesBuffer matricesWVP;
 	ZeroMemory(&matricesWVP, sizeof(MatricesBuffer));
-	//NewCoordinateSystemMatrix(XMVectorSet(0.0f, 5.0f, -2.0f, 1.0f), XMVectorSet(0.0f, 0.0f, 1.0f, 1.0f), XMVectorSet(0.0f, 1.0f, 0.0f, 1.0f), &matricesWVP.mView);
-	matricesWVP.mView = XMMatrixLookAtLH(XMVectorSet(0.0f, 2.0f, -2.0f, 1.0f), XMVectorSet(0.0f, 0.0f, 1.0f, 1.0f), XMVectorSet(0.0f, 1.0f, 0.0f, 1.0f));
+	NewCoordinateSystemMatrix(XMVectorSet(0.0f, 1.0f, 0.0f, 1.0f), XMVectorSet(0.0f, 0.0f, 1.0f, 1.0f), XMVectorSet(XMScalarSin(XM_PI / 14.01f), XMScalarCos(XM_PI / 14.01f), 0.0f, 1.0f), &(matricesWVP.mView));
+	//matricesWVP.mView = XMMatrixLookAtLH(XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f), XMVectorSet(0.0f, 0.0f, 1.0f, 1.0f), XMVectorSet(XMScalarCos(XM_PI / 4.0f), XMScalarSin(XM_PI / 4.0f), 0.0f, 1.0f));
 	SetProjectionMatrix(&matricesWVP, XM_PI / 5.0f, XM_PI / 25.0f, true);
 
 	MSG msg;// структура, описывающая сообщение
@@ -691,7 +691,7 @@ HRESULT InvertMatrix(XMVECTOR zAxis, XMVECTOR yAxis, XMMATRIX* invertibleMatrix)
 	}
 
 	// нахождение новой оси X
-	XMVECTOR xAxis = XMVector3Cross(zAxis, yAxis); // правая тройка векторов
+	XMVECTOR xAxis = -XMVector3Cross(zAxis, yAxis); // правая тройка векторов
 	// векторы линейно независимы, значит можно искать обратную матрицу
 
 	// матрица обратная обратной матрице, обычная матрица
