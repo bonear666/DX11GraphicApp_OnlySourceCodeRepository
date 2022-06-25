@@ -66,6 +66,7 @@ AngleConstantBuffer angleCBufferData = { 0.0f, 0.0f, 0.0f, 0.0f }; // угол повор
 ID3D11ShaderResourceView* pAngleBufferVSResource = NULL; // ресурс вершинного шейдера, к оторм находится угол
 ID3D11Texture2D* depthStencilTexture = NULL; // текстура depth буфера
 ID3D11DepthStencilView* g_pDepthStencilView = NULL; // ресурсы depth буфера
+ID3D11DepthStencilState* pDSState = NULL; // состояние depth-stencil теста
 
 //ПРЕДВАРИТЕЛЬНЫЕ ОБЪЯВЛЕНИЯ ФУНКЦИЙ
 
@@ -153,7 +154,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	// инициализация матриц
 	MatricesBuffer matricesWVP;
 	ZeroMemory(&matricesWVP, sizeof(MatricesBuffer));
-	NewCoordinateSystemMatrix(XMVectorSet(1.7f, -1.3f, 0.0f, 1.0f), XMVectorSet(0.0f, 0.0f, 1.0f, 1.0f), XMVectorSet(XMScalarSin(XM_PI / 4.0f), XMScalarCos(XM_PI / 4.0f), 0.0f, 1.0f), &(matricesWVP.mView));
+	NewCoordinateSystemMatrix(XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f), XMVectorSet(0.0f, 0.0f, 1.0f, 1.0f), XMVectorSet(XMScalarSin(XM_PI / 4.0f), XMScalarCos(XM_PI / 4.0f), 0.0f, 1.0f), &(matricesWVP.mView));
 	//matricesWVP.mView = XMMatrixLookAtLH(XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f), XMVectorSet(0.0f, 0.0f, 1.0f, 1.0f), XMVectorSet(XMScalarCos(XM_PI / 4.0f), XMScalarSin(XM_PI / 4.0f), 0.0f, 1.0f));
 	SetProjectionMatrix(&matricesWVP, XM_PI / 5.0f, XM_PI / 25.0f, true);
 
@@ -331,7 +332,20 @@ createDeviceDeviceContextSwapChainLoopExit:
 
 	// описание того, как будет выполнятся z-test и stencil-test
 	D3D11_DEPTH_STENCIL_DESC dsDesc;
+	dsDesc.DepthEnable = TRUE;
+	dsDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+	dsDesc.DepthFunc = D3D11_COMPARISON_LESS;
+	dsDesc.StencilEnable = TRUE;
+	dsDesc.StencilReadMask = 0xFF;
+	dsDesc.StencilWriteMask = 0xFF;
+	dsDesc.FrontFace = { D3D11_STENCIL_OP_KEEP , D3D11_STENCIL_OP_KEEP , D3D11_STENCIL_OP_KEEP , D3D11_COMPARISON_ALWAYS };
+	dsDesc.BackFace = { D3D11_STENCIL_OP_KEEP , D3D11_STENCIL_OP_KEEP , D3D11_STENCIL_OP_KEEP , D3D11_COMPARISON_NEVER };
 
+	// создание состояния depth-stencil теста
+	g_pd3dDevice->CreateDepthStencilState(&dsDesc, &pDSState);
+
+	// связывание настроек depth-stencil теста с OM stage
+	g_pImmediateContext->OMSetDepthStencilState(pDSState, 1);
 
 	// Привязка RTV к Output-Merger Stage
 	g_pImmediateContext->OMSetRenderTargets(1, &g_pRenderTargetView, NULL);
