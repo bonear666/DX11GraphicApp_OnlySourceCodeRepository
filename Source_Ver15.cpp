@@ -67,6 +67,7 @@ ID3D11ShaderResourceView* pAngleBufferVSResource = NULL; // ресурс вершинного ше
 ID3D11Texture2D* depthStencilTexture = NULL; // текстура depth буфера
 ID3D11DepthStencilView* g_pDepthStencilView = NULL; // ресурсы depth буфера
 ID3D11DepthStencilState* pDSState = NULL; // состояние depth-stencil теста
+ID3D11RasterizerState* pRasterizerState = NULL; // состояние растеризатора 
 
 //ПРЕДВАРИТЕЛЬНЫЕ ОБЪЯВЛЕНИЯ ФУНКЦИЙ
 
@@ -154,8 +155,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	// инициализация матриц
 	MatricesBuffer matricesWVP;
 	ZeroMemory(&matricesWVP, sizeof(MatricesBuffer));
-	NewCoordinateSystemMatrix(XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f), XMVectorSet(0.0f, 0.0f, 1.0f, 1.0f), XMVectorSet(XMScalarSin(XM_PI / 4.0f), XMScalarCos(XM_PI / 4.0f), 0.0f, 1.0f), &(matricesWVP.mView));
-	//matricesWVP.mView = XMMatrixLookAtLH(XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f), XMVectorSet(0.0f, 0.0f, 1.0f, 1.0f), XMVectorSet(XMScalarCos(XM_PI / 4.0f), XMScalarSin(XM_PI / 4.0f), 0.0f, 1.0f));
+	//NewCoordinateSystemMatrix(XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f), XMVectorSet(0.0f, 0.0f, 1.0f, 1.0f), XMVectorSet(XMScalarSin(XM_PI / 4.0f), XMScalarCos(XM_PI / 4.0f), 0.0f, 1.0f), &(matricesWVP.mView));
+	matricesWVP.mView = XMMatrixLookToLH(XMVectorSet(0.0f, 1.0f, 0.0f, 1.0f), XMVectorSet(0.0f, 0.0f, 1.0f, 1.0f), XMVectorSet(XMScalarCos(XM_PI / 4.0f), XMScalarSin(XM_PI / 4.0f), 0.0f, 1.0f));
 	SetProjectionMatrix(&matricesWVP, XM_PI / 5.0f, XM_PI / 25.0f, true);
 
 	MSG msg;// структура, описывающая сообщение
@@ -330,6 +331,8 @@ createDeviceDeviceContextSwapChainLoopExit:
 	depthStencilDesc.CPUAccessFlags = 0;
 	depthStencilDesc.MiscFlags = 0;
 
+	g_pd3dDevice->CreateTexture2D(&depthStencilDesc, NULL, &depthStencilTexture);
+
 	// описание того, как будет выполнятся z-test и stencil-test
 	D3D11_DEPTH_STENCIL_DESC dsDesc;
 	dsDesc.DepthEnable = TRUE;
@@ -347,8 +350,30 @@ createDeviceDeviceContextSwapChainLoopExit:
 	// связывание настроек depth-stencil теста с OM stage
 	g_pImmediateContext->OMSetDepthStencilState(pDSState, 1);
 
-	// Привязка RTV к Output-Merger Stage
-	g_pImmediateContext->OMSetRenderTargets(1, &g_pRenderTargetView, NULL);
+	// описание depth-stencil view
+	D3D11_DEPTH_STENCIL_VIEW_DESC descDSV;
+	descDSV.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+	descDSV.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+	descDSV.Flags = NULL;
+	descDSV.Texture2D.MipSlice = 0;
+
+	// создание depth-stencil view
+	g_pd3dDevice->CreateDepthStencilView(depthStencilTexture, &descDSV, &g_pDepthStencilView);
+
+	// Привязка RTV и DSV к Output-Merger Stage
+	g_pImmediateContext->OMSetRenderTargets(1, &g_pRenderTargetView, g_pDepthStencilView);
+
+	// описание состояния растеризатора
+	D3D11_RASTERIZER_DESC rasterizerState;
+	ZeroMemory(&rasterizerState, sizeof(D3D11_RASTERIZER_DESC));
+	rasterizerState.FillMode = D3D11_FILL_SOLID;
+	rasterizerState.CullMode = D3D11_CULL_BACK;
+
+	// создание состояния растеризатора
+	g_pd3dDevice->CreateRasterizerState(&rasterizerState, &pRasterizerState);
+
+	// связывание состояния растеризатора с стадией растеризации
+	g_pImmediateContext->RSSetState(pRasterizerState);
 
 	return S_OK;
 };
@@ -421,6 +446,9 @@ void DrawScene() {
 
 	// Устанавливает цвет всеч пикселей поверхности RTV к единому значению
 	g_pImmediateContext->ClearRenderTargetView(g_pRenderTargetView, backgroundColor);
+
+	// оччистка depth-stencil буфера
+	g_pImmediateContext->ClearDepthStencilView(g_pDepthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
 
 	// отрисовка примитивов 
 	g_pImmediateContext->DrawIndexed(12, 0, 0);
@@ -832,6 +860,22 @@ void ReleaseObjects() {
 	if (pVertexBuffer != NULL) {
 		pVertexBuffer->Release();
 		pVertexBuffer = NULL;
+	}
+	if(pRasterizerState != NULL) {
+		pRasterizerState->Release();
+		pRasterizerState = NULL;
+	}
+	if (g_pDepthStencilView != NULL) {
+		g_pDepthStencilView->Release();
+		g_pDepthStencilView = NULL;
+	}
+	if (pDSState != NULL) {
+		pDSState->Release();
+		pDSState = NULL;
+	}
+	if (depthStencilTexture != NULL) {
+		depthStencilTexture->Release();
+		depthStencilTexture = NULL;
 	}
 	if (g_pRenderTargetView != NULL) {
 		g_pRenderTargetView->Release();
