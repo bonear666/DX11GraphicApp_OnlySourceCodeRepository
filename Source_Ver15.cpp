@@ -42,6 +42,12 @@ struct AngleConstantBuffer {
 	float angle3;
 };
 
+// структура камеры
+struct Camera {
+	XMVECTOR z;
+	XMVECTOR y;
+};
+
 // √ЋќЅјЋ№Ќџ≈ ѕ≈–≈ћ≈ЌЌџ≈
 
 HINSTANCE               g_hInst = NULL; //указатель на struct, дескриптор(handle) данного приложени€.
@@ -101,6 +107,12 @@ FLOAT MaxElement(FLOAT arg0, FLOAT arg1);
 HRESULT InvertMatrix(XMVECTOR zAxis, XMVECTOR yAxis, XMMATRIX* invertibleMatrix);
 // —оздание матрицы перехода к другой системе координат
 HRESULT NewCoordinateSystemMatrix(XMVECTOR point, XMVECTOR zAxis, XMVECTOR yAxis, XMMATRIX* invertibleMatrix);
+// —оздание матрицы мира
+void SetWorldMatrix(XMVECTOR point, XMVECTOR scale, XMMATRIX* worldMatrix);
+// изменение пор€дка обхода вершин
+void InvertIndices(WORD* indicesArray, int size);
+// поворот камеры
+Camera CameraRotation();
 
 // √лавна€ функци€, точка входа
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd) {
@@ -121,10 +133,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 	// массив вершин (пирамида)
 	Vertex* vertexArray = new Vertex[]{
-		Vertex{XMFLOAT4{0.0f, 0.5f, 0.25f, 1.0f}, XMFLOAT4{1.0f, 0.0f, 0.0f, 1.0f}}, // a 0
-		Vertex{XMFLOAT4{0.25f, 0.0f, 0.25f, 1.0f}, XMFLOAT4{1.0f, 1.0f, 0.0f, 1.0f}}, //b 1
-		Vertex{XMFLOAT4{0.0f, 0.0f, 0.75f, 1.0f}, XMFLOAT4{0.0f, 0.0f, 0.0f, 1.0f}}, //c 2
-		Vertex{XMFLOAT4{-0.25f, 0.0f, 0.25f, 1.0f}, XMFLOAT4{1.0f, 0.0f, 1.0f, 1.0f}} //d 3
+		Vertex{XMFLOAT4{0.0f, 5.0f, 2.5f, 10.0f}, XMFLOAT4{1.0f, 0.0f, 0.0f, 1.0f}}, // a 0
+		Vertex{XMFLOAT4{2.5f, 0.0f, 2.5f, 10.0f}, XMFLOAT4{1.0f, 1.0f, 0.0f, 1.0f}}, //b 1
+		Vertex{XMFLOAT4{0.0f, 0.0f, 7.5f, 10.0f}, XMFLOAT4{0.0f, 0.0f, 0.0f, 1.0f}}, //c 2
+		Vertex{XMFLOAT4{-2.5f, 0.0f, 2.5f, 10.0f}, XMFLOAT4{1.0f, 0.0f, 1.0f, 1.0f}} //d 3
 	};
 
 	// создание буфера вершин, компил€ци€ шейдеров, св€зывание шейдеров и буфера вершин с конвейером
@@ -146,6 +158,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		0, 3, 1 //adb  невидима€ грань (обход против часовой стрелки)
 	};
 
+	InvertIndices(indices, 12);
+
 	// —оздание константного буфера матриц, константного буфера угла, буфера вершин
 	hr = InitMatrices(indices);
 	if (FAILED(hr)) {
@@ -155,8 +169,18 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	// инициализаци€ матриц
 	MatricesBuffer matricesWVP;
 	ZeroMemory(&matricesWVP, sizeof(MatricesBuffer));
-	//NewCoordinateSystemMatrix(XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f), XMVectorSet(0.0f, 0.0f, 1.0f, 1.0f), XMVectorSet(XMScalarSin(XM_PI / 4.0f), XMScalarCos(XM_PI / 4.0f), 0.0f, 1.0f), &(matricesWVP.mView));
-	matricesWVP.mView = XMMatrixLookToLH(XMVectorSet(0.0f, 1.0f, 0.0f, 1.0f), XMVectorSet(0.0f, 0.0f, 1.0f, 1.0f), XMVectorSet(XMScalarCos(XM_PI / 4.0f), XMScalarSin(XM_PI / 4.0f), 0.0f, 1.0f));
+
+	float vecAngle = -XM_PIDIV4;
+	XMVECTOR eye = XMVectorSet(1.0f, 1.5f, 0.0f, 1.0f); // откуда смотрим
+	XMVECTOR zAxis = XMVectorSet(0.0f, XMScalarSinEst(vecAngle), XMScalarCosEst(vecAngle), 1.0f); // куда смотрим
+	XMVECTOR yAxis = XMVectorSet(0.0f, XMScalarCosEst(XM_PIDIV4), XMScalarSinEst(XM_PIDIV4), 1.0f); // нормаль к тому, куда смотрим
+
+	//NewCoordinateSystemMatrix(eye, zAxis, yAxis, &matricesWVP.mView);
+	matricesWVP.mView = XMMatrixLookToLH(eye, zAxis, yAxis);
+	matricesWVP.mView.r[3] = _mm_mul_ps(eye, XMVectorSet(-1.0f, -1.0f, -1.0f, 1.0f)); // приходитс€ замен€ть последнюю строку в матрице вида, так как XMMatrixLookToLH как-то странно считает значение последней строки
+	matricesWVP.mView = XMMatrixTranspose(matricesWVP.mView); 
+
+	// инициализаци€ матрицы проекции
 	SetProjectionMatrix(&matricesWVP, XM_PI / 5.0f, XM_PI / 25.0f, true);
 
 	MSG msg;// структура, описывающа€ сообщение
@@ -687,7 +711,7 @@ void SetProjectionMatrix(MatricesBuffer* pMatricesBuffer, FLOAT angleHoriz, FLOA
 		newCoeff = 1.0f / (1.0f + tangentAngle);
 		pMatricesBuffer->mProjection._11 = newCoeff;
 		pMatricesBuffer->mProjection._22 = newCoeff;
-		pMatricesBuffer->mProjection._33 = 1.0f;
+		pMatricesBuffer->mProjection._33 = 0.25f * newCoeff;
 		pMatricesBuffer->mProjection._44 = 1.0f;
 
 		SaveProportions(pMatricesBuffer, g_hWnd);
@@ -817,6 +841,21 @@ HRESULT NewCoordinateSystemMatrix(XMVECTOR point, XMVECTOR zAxis, XMVECTOR yAxis
 
 	return S_OK;
 };
+void SetWorldMatrix(XMVECTOR point, XMVECTOR scale, XMMATRIX* worldMatrix) {
+	*worldMatrix = XMMatrixTranslationFromVector(point) * XMMatrixScalingFromVector(scale);
+};
+
+void InvertIndices(WORD* indicesArray, int size) {
+	WORD triangleEnd;
+
+	for (int i = 2; i < size; i = i + 3) {
+		triangleEnd = indicesArray[i];
+
+		indicesArray[i] = indicesArray[i-2];
+		indicesArray[i - 2] = triangleEnd;
+	}
+};
+
 
 void ReleaseObjects() {
 	if (pIndexBuffer != NULL) {
