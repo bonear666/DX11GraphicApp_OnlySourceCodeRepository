@@ -113,6 +113,8 @@ void SetWorldMatrix(XMVECTOR point, XMVECTOR scale, XMMATRIX* worldMatrix);
 void InvertIndices(WORD* indicesArray, int size);
 // поворот камеры
 Camera CameraRotation();
+// поиск ортогонального вектора к заданному
+XMVECTOR FindOrthogonalVector(XMVECTOR vector);
 
 // Главная функция, точка входа
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd) {
@@ -172,12 +174,16 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 	float vecAngle = -XM_PIDIV4;
 	XMVECTOR eye = XMVectorSet(1.0f, 1.5f, 0.0f, 1.0f); // откуда смотрим
-	XMVECTOR zAxis = XMVectorSet(0.0f, XMScalarSinEst(vecAngle), XMScalarCosEst(vecAngle), 1.0f); // куда смотрим
-	XMVECTOR yAxis = XMVectorSet(0.0f, XMScalarCosEst(XM_PIDIV4), XMScalarSinEst(XM_PIDIV4), 1.0f); // нормаль к тому, куда смотрим
+	// Лучше использовать XMScalarSinExt, XMScalarCosExt вместо XMScalarSin, XMScalarCos, чтобы получать хорошое округление чисел
+	//XMVECTOR zAxis = XMVectorSet(0.0f, XMScalarSinEst(vecAngle), XMScalarCosEst(vecAngle), 1.0f); // куда смотрим. 
+	//XMVECTOR yAxis = XMVectorSet(0.0f, XMScalarCosEst(XM_PIDIV4), XMScalarSinEst(XM_PIDIV4), 1.0f); // нормаль к тому, куда смотрим
 
-	//NewCoordinateSystemMatrix(eye, zAxis, yAxis, &matricesWVP.mView);
-	matricesWVP.mView = XMMatrixLookToLH(eye, zAxis, yAxis);
-	matricesWVP.mView.r[3] = _mm_mul_ps(eye, XMVectorSet(-1.0f, -1.0f, -1.0f, 1.0f)); // приходится заменять последнюю строку в матрице вида, так как XMMatrixLookToLH как-то странно считает значение последней строки
+	XMVECTOR zAxis = XMVectorSet(0.0f, 0.0f, -1.0f, 1.0f); // куда смотрим. 
+	XMVECTOR yAxis = XMVectorSet(0.0f, 1.0f, 0.0f, 1.0f); // нормаль к тому, куда смотрим
+
+	NewCoordinateSystemMatrix(eye, zAxis, yAxis, &matricesWVP.mView);
+	//matricesWVP.mView = XMMatrixLookToLH(eye, zAxis, yAxis);
+	//matricesWVP.mView.r[3] = _mm_mul_ps(eye, XMVectorSet(-1.0f, -1.0f, -1.0f, 1.0f)); // приходится заменять последнюю строку в матрице вида, так как XMMatrixLookToLH как-то странно считает значение последней строки
 	matricesWVP.mView = XMMatrixTranspose(matricesWVP.mView); 
 
 	// инициализация матрицы проекции
@@ -853,6 +859,38 @@ void InvertIndices(WORD* indicesArray, int size) {
 
 		indicesArray[i] = indicesArray[i-2];
 		indicesArray[i - 2] = triangleEnd;
+	}
+};
+
+XMVECTOR FindOrthogonalVector(XMVECTOR vector) {
+	XMFLOAT4 orthogonalVector;
+	int zeroElementOrNot[3];
+
+	for (int i = 0; i < 3; ++i) {
+		if (XMVectorGetByIndex(vector, i) != 0.0f) {
+			zeroElementOrNot[i] = 1;
+		}
+		zeroElementOrNot[i] = 0;
+	}
+
+	if ((zeroElementOrNot[1] != 0) || (zeroElementOrNot[2] != 0)) {
+		orthogonalVector.x = 1.0f;
+
+		if ((zeroElementOrNot[1] != 0) && (zeroElementOrNot[2] == 0)) {
+			orthogonalVector.y = -XMVectorGetByIndex(vector, 0) / XMVectorGetByIndex(vector, 1);
+
+			return XMVectorSet(orthogonalVector.x, orthogonalVector.y, 0.0f, 0.0f);
+		}
+		else
+		{
+			orthogonalVector.z = -XMVectorGetByIndex(vector, 0) / XMVectorGetByIndex(vector, 2);
+
+			return XMVectorSet(orthogonalVector.x, 0.0f, orthogonalVector.z, 0.0f);
+		}
+	}
+	else
+	{
+		return XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
 	}
 };
 
