@@ -27,7 +27,7 @@ struct ShaderModelDesc {
 	LPCSTR pixelShaderModel;
 };
 
-//
+// матрицы
 struct MatricesBuffer {
 	XMMATRIX mWorld;              // Матрица мира
 	XMMATRIX mView;        // Матрица вида
@@ -862,7 +862,7 @@ void InvertIndices(WORD* indicesArray, int size) {
 	}
 };
 
-XMVECTOR FindOrthogonalVector(XMVECTOR vector) {
+XMVECTOR FindOrthogonalVector(XMVECTOR vector) { // скалярное произведение ортогональных векторов равно нулю, на использовании этого факта и строится поиск ортогонального вектора
 	XMFLOAT4 orthogonalVector;
 	int zeroElementOrNot[3];
 
@@ -894,6 +894,21 @@ XMVECTOR FindOrthogonalVector(XMVECTOR vector) {
 	}
 };
 
+void RotationAroundAxis(XMVECTOR yAxis, XMVECTOR point, FLOAT angle, XMMATRIX* outputMatrix) {
+	XMVECTOR zAxis = FindOrthogonalVector(yAxis);
+
+	XMMATRIX newCoordinates;
+	// переход координат вершины от координат в старом базисе к координатам в новом базисе, где заданная ось является осью Y
+	NewCoordinateSystemMatrix(point, zAxis, yAxis, &newCoordinates); 
+
+	// так как заданная ось является осью Y, то и вращение будет происходить вокруг оси Y
+	XMMATRIX yAxisRotationMatrix = XMMatrixRotationY(angle);
+
+	// матрица возврата к старым координатам
+	XMMATRIX transformationMatrix;
+
+	*outputMatrix = newCoordinates * yAxisRotationMatrix * transformationMatrix;
+}
 
 void ReleaseObjects() {
 	if (pIndexBuffer != NULL) {
