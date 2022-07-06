@@ -68,7 +68,7 @@ ID3D11Buffer* pVertexBuffer = NULL; // указатель на буфер вершин
 ID3D11Buffer* pConstantBuffer = NULL; // констнантный буфер
 ID3D11Buffer* pIndexBuffer = NULL; // буфер индексов
 ID3D11Buffer* pAngleBuffer = NULL; // буфер угла 
-ID3D11Buffer* constantBufferArray[] = {NULL, NULL};
+ID3D11Buffer* constantBufferArray[] = {NULL, NULL, NULL}; // массив указателей на интерфейсы константных буферов
 AngleConstantBuffer angleCBufferData = { 0.0f, 0.0f, 0.0f, 0.0f }; // угол поворота
 ID3D11ShaderResourceView* pAngleBufferVSResource = NULL; // ресурс вершинного шейдера, к оторм находится угол
 ID3D11Texture2D* depthStencilTexture = NULL; // текстура depth буфера
@@ -116,6 +116,10 @@ void InvertIndices(WORD* indicesArray, int size);
 Camera CameraRotation();
 // поиск ортогонального вектора к заданному
 XMVECTOR FindOrthogonalVector(XMVECTOR vector);
+// поиск ортгонального нормализованного вектора к заданному
+XMVECTOR FindOrthogonalNormalizedVector(XMVECTOR vector);
+// матрица вращения вершины вокруг произвольного вектора
+void RotationAroundAxis(XMVECTOR yAxis, XMVECTOR point, FLOAT angle, XMMATRIX* outputMatrix);
 
 // Главная функция, точка входа
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd) {
@@ -176,19 +180,23 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	float vecAngle = -XM_PIDIV4;
 	XMVECTOR eye = XMVectorSet(1.0f, 1.5f, 0.0f, 1.0f); // откуда смотрим
 	// Лучше использовать XMScalarSinExt, XMScalarCosExt вместо XMScalarSin, XMScalarCos, чтобы получать хорошое округление чисел
-	//XMVECTOR zAxis = XMVectorSet(0.0f, XMScalarSinEst(vecAngle), XMScalarCosEst(vecAngle), 1.0f); // куда смотрим. 
-	//XMVECTOR yAxis = XMVectorSet(0.0f, XMScalarCosEst(XM_PIDIV4), XMScalarSinEst(XM_PIDIV4), 1.0f); // нормаль к тому, куда смотрим
+	XMVECTOR zAxis = XMVectorSet(0.0f, XMScalarSinEst(vecAngle), XMScalarCosEst(vecAngle), 1.0f); // куда смотрим. 
+	XMVECTOR yAxis = XMVectorSet(0.0f, XMScalarCosEst(XM_PIDIV4), XMScalarSinEst(XM_PIDIV4), 1.0f); // нормаль к тому, куда смотрим
 
-	XMVECTOR zAxis = XMVectorSet(0.0f, 0.0f, -1.0f, 1.0f); // куда смотрим. 
-	XMVECTOR yAxis = XMVectorSet(0.0f, 1.0f, 0.0f, 1.0f); // нормаль к тому, куда смотрим
+	//XMVECTOR zAxis = XMVectorSet(0.0f, 0.0f, -1.0f, 1.0f); // куда смотрим. 
+	//XMVECTOR yAxis = XMVectorSet(0.0f, 1.0f, 0.0f, 1.0f); // нормаль к тому, куда смотрим
 
-	NewCoordinateSystemMatrix(eye, zAxis, yAxis, &matricesWVP.mView);
-	//matricesWVP.mView = XMMatrixLookToLH(eye, zAxis, yAxis);
-	//matricesWVP.mView.r[3] = _mm_mul_ps(eye, XMVectorSet(-1.0f, -1.0f, -1.0f, 1.0f)); // приходится заменять последнюю строку в матрице вида, так как XMMatrixLookToLH как-то странно считает значение последней строки
+	//NewCoordinateSystemMatrix(eye, zAxis, yAxis, &matricesWVP.mView);
+	matricesWVP.mView = XMMatrixLookToLH(eye, zAxis, yAxis);
+	matricesWVP.mView.r[3] = _mm_mul_ps(eye, XMVectorSet(-1.0f, -1.0f, -1.0f, 1.0f)); // приходится заменять последнюю строку в матрице вида, так как XMMatrixLookToLH как-то странно считает значение последней строки
 	matricesWVP.mView = XMMatrixTranspose(matricesWVP.mView); 
 
 	// инициализация матрицы проекции
 	SetProjectionMatrix(&matricesWVP, XM_PI / 5.0f, XM_PI / 25.0f, true);
+
+	// матрица поворота вокруг вектора
+	XMMATRIX rotationAroundVector;
+	RotationAroundAxis(g_XMIdentityR2, g_XMZero, angleCBufferData.angle0, &rotationAroundVector);
 
 	MSG msg;// структура, описывающая сообщение
 	ZeroMemory(&msg, sizeof(MSG));
@@ -700,26 +708,27 @@ void SetProjectionMatrix(MatricesBuffer* pMatricesBuffer, FLOAT angleHoriz, FLOA
 		XMScalarSinCos(&sinAngle, &cosAngle, angleHoriz);
 		tangentAngle = sinAngle / cosAngle;
 		newCoeff = 1.0f / (1.0f + tangentAngle);
-		pMatricesBuffer->mProjection._11 = newCoeff;
+		pMatricesBuffer->mProjection.r[0] = XMVectorSet(newCoeff, 0.0f, 0.0f, 0.0f);
 
 		XMScalarSinCos(&sinAngle, &cosAngle, angleVert);
 		tangentAngle = sinAngle / cosAngle;
 		newCoeff = 1.0f / (1.0f + tangentAngle);
-		pMatricesBuffer->mProjection._22 = newCoeff;
+		pMatricesBuffer->mProjection.r[1] = XMVectorSet(0.0f, newCoeff, 0.0f, 0.0f);
 
-		pMatricesBuffer->mProjection._33 = 1.0f;
-		pMatricesBuffer->mProjection._44 = 1.0f;
+		pMatricesBuffer->mProjection.r[2] = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
+		pMatricesBuffer->mProjection.r[3] = XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
 
+		pMatricesBuffer->mProjection = XMMatrixTranspose(pMatricesBuffer->mProjection);
 		g_pImmediateContext->UpdateSubresource(constantBufferArray[0], 0, 0, pMatricesBuffer, 0, 0);
 	}
 	else {
 		XMScalarSinCos(&sinAngle, &cosAngle, MaxElement(angleHoriz, angleVert));
 		tangentAngle = sinAngle / cosAngle;
 		newCoeff = 1.0f / (1.0f + tangentAngle);
-		pMatricesBuffer->mProjection._11 = newCoeff;
-		pMatricesBuffer->mProjection._22 = newCoeff;
-		pMatricesBuffer->mProjection._33 = 0.25f * newCoeff;
-		pMatricesBuffer->mProjection._44 = 1.0f;
+		pMatricesBuffer->mProjection.r[0] = XMVectorSet(newCoeff, 0.0f, 0.0f, 0.0f);
+		pMatricesBuffer->mProjection.r[1] = XMVectorSet(0.0f, newCoeff, 0.0f, 0.0f);
+		pMatricesBuffer->mProjection.r[2] = XMVectorSet(0.0f, 0.0f, 0.25f * newCoeff, 0.0f);
+		pMatricesBuffer->mProjection.r[3] = XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
 
 		SaveProportions(pMatricesBuffer, g_hWnd);
 	}
@@ -738,13 +747,16 @@ void SaveProportions(MatricesBuffer* pMatricesBuffer, HWND hWnd) {
 	windowCoeff = windowHeight / windowWidth;
 
 	if (windowCoeff >= 1.0f) {
-		pMatricesBuffer->mProjection._22 *=  1 / windowCoeff;
+		//pMatricesBuffer->mProjection._22 *=  1 / windowCoeff;
+		pMatricesBuffer->mProjection.r[1] = _mm_mul_ps(pMatricesBuffer->mProjection.r[1], XMVectorSet(1.0f, 1.0f / windowCoeff, 1.0f, 1.0f));
 	}
 	else
 	{
-		pMatricesBuffer->mProjection._11 *= windowCoeff;
+		//pMatricesBuffer->mProjection._11 *= windowCoeff;
+		pMatricesBuffer->mProjection.r[0] = _mm_mul_ps(pMatricesBuffer->mProjection.r[0], XMVectorSet(windowCoeff, 1.0f, 1.0f, 1.0f));
 	}
 
+	pMatricesBuffer->mProjection = XMMatrixTranspose(pMatricesBuffer->mProjection);
 	g_pImmediateContext->UpdateSubresource(constantBufferArray[0], 0, 0, pMatricesBuffer, 0, 0);
 };
 
