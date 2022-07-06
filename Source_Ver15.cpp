@@ -12,6 +12,7 @@
 #include <xnamath.h>
 #include <d3dcompiler.h>
 #include <iostream>
+#include <cmath>
 
 // ОПИСАНИЕ СТРУКТУР
 
@@ -894,20 +895,66 @@ XMVECTOR FindOrthogonalVector(XMVECTOR vector) { // скалярное произведение ортог
 	}
 };
 
-void RotationAroundAxis(XMVECTOR yAxis, XMVECTOR point, FLOAT angle, XMMATRIX* outputMatrix) {
-	XMVECTOR zAxis = FindOrthogonalVector(yAxis);
+XMVECTOR FindOrthogonalNormalizedVector(XMVECTOR vector) {
+	XMFLOAT4 orthogonalVector;
 
-	XMMATRIX newCoordinates;
+	for (int i = 0; i < 3; ++i) {
+		float coordinate = XMVectorGetByIndex(vector, i);
+		if ((coordinate != 0.0f)) {
+			// если координата x не ноль
+			if (i == 0) {
+				float zOfFirstVector = XMVectorGetByIndex(vector, 2);
+				orthogonalVector.z = coordinate / (sqrt(coordinate * coordinate + zOfFirstVector * zOfFirstVector));
+				orthogonalVector.x = (-orthogonalVector.z * zOfFirstVector) / coordinate;
+
+				return XMVectorSet(orthogonalVector.x, 0.0f, orthogonalVector.z, 0.0f);
+			}
+
+			// если координата y не ноль
+			if (i == 1) {
+				float zOfFirstVector = XMVectorGetByIndex(vector, 2);
+				orthogonalVector.z = coordinate / (sqrt(coordinate * coordinate + zOfFirstVector * zOfFirstVector));
+				orthogonalVector.y = (-orthogonalVector.z * zOfFirstVector) / coordinate;
+
+				return XMVectorSet(0.0f, orthogonalVector.y, orthogonalVector.z, 0.0f);
+			}
+
+			// если координата z не ноль
+			if (i == 2) {
+				float yOfFirstVector = XMVectorGetByIndex(vector, 1);
+				orthogonalVector.y = coordinate / (sqrt(coordinate * coordinate + yOfFirstVector * yOfFirstVector));
+				orthogonalVector.z = (-orthogonalVector.y * yOfFirstVector) / coordinate;
+
+				return XMVectorSet(0.0f, orthogonalVector.y, orthogonalVector.z, 0.0f);
+			}
+		}
+	}
+	// если дан нулевой вектор
+	return XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
+};
+
+void RotationAroundAxis(XMVECTOR yAxis, XMVECTOR point, FLOAT angle, XMMATRIX* outputMatrix) {
+	XMVECTOR zAxis = FindOrthogonalNormalizedVector(yAxis);
+	XMMATRIX offsetMatrix = XMMatrixTranslationFromVector(_mm_mul_ps(point, XMVectorSet(-1.0f, -1.0f, -1.0f, 0.0f))); // матрица переноса вершины, которая будет поворачиваться вокруг оси, на -point
+	XMMATRIX backOffsetMatrix = XMMatrixTranslationFromVector(point); // матрица переноса перенесенной вершины, которую уже повернули вокруг оси, на +point
+
 	// переход координат вершины от координат в старом базисе к координатам в новом базисе, где заданная ось является осью Y
-	NewCoordinateSystemMatrix(point, zAxis, yAxis, &newCoordinates); 
+	XMMATRIX newCoordinates;
+	NewCoordinateSystemMatrix(g_XMZero, zAxis, yAxis, &newCoordinates); // вектор xAxis, который находится в этой функции будет нормализованным, так как вектор, полученный
+																	 // в результате векторного произведения нормализованных и ортогональных векторов тоже будет нормализованным  
 
 	// так как заданная ось является осью Y, то и вращение будет происходить вокруг оси Y
 	XMMATRIX yAxisRotationMatrix = XMMatrixRotationY(angle);
 
 	// матрица возврата к старым координатам
-	XMMATRIX transformationMatrix;
+	XMMATRIX transformationMatrix = {
+		XMVector3Cross(yAxis, zAxis),
+		yAxis,
+		zAxis,
+		g_XMIdentityR3 };
 
-	*outputMatrix = newCoordinates * yAxisRotationMatrix * transformationMatrix;
+	// можно перемножить все матрицы, так как перемножение матриц ассоциативно, и получить одну матрицу. Не придется в шейдере на каждую вершину делать несколько перемножений матриц. 
+	*outputMatrix = offsetMatrix * newCoordinates * yAxisRotationMatrix * transformationMatrix * backOffsetMatrix; 
 }
 
 void ReleaseObjects() {
