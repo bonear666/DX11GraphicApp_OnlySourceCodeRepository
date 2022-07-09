@@ -75,6 +75,7 @@ ID3D11Texture2D* depthStencilTexture = NULL; // текстура depth буфера
 ID3D11DepthStencilView* g_pDepthStencilView = NULL; // ресурсы depth буфера
 ID3D11DepthStencilState* pDSState = NULL; // состо€ние depth-stencil теста
 ID3D11RasterizerState* pRasterizerState = NULL; // состо€ние растеризатора 
+MatricesBuffer matricesWVP; // матрицы
 
 //ѕ–≈ƒ¬ј–»“≈Ћ№Ќџ≈ ќЅЏя¬Ћ≈Ќ»я ‘”Ќ ÷»…
 
@@ -89,7 +90,7 @@ HRESULT InitGeometry(Vertex* vertexArray, LPCWSTR vertexShaderName, LPCWSTR pixe
 // ќбновление сцены
 void UpdateScene();
 // –ендеринг сцены
-void DrawScene();
+void DrawScene(XMVECTOR* objectsPositionsArray);
 // ќсвобождение COM-интерфейсов
 void ReleaseObjects();
 // компил€ци€ шейдера
@@ -140,10 +141,17 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 	// массив вершин (пирамида)
 	Vertex* vertexArray = new Vertex[]{
-		Vertex{XMFLOAT4{0.0f, 5.0f, 2.5f, 10.0f}, XMFLOAT4{1.0f, 0.0f, 0.0f, 1.0f}}, // a 0
-		Vertex{XMFLOAT4{2.5f, 0.0f, 2.5f, 10.0f}, XMFLOAT4{1.0f, 1.0f, 0.0f, 1.0f}}, //b 1
-		Vertex{XMFLOAT4{0.0f, 0.0f, 7.5f, 10.0f}, XMFLOAT4{0.0f, 0.0f, 0.0f, 1.0f}}, //c 2
-		Vertex{XMFLOAT4{-2.5f, 0.0f, 2.5f, 10.0f}, XMFLOAT4{1.0f, 0.0f, 1.0f, 1.0f}} //d 3
+		Vertex{XMFLOAT4{0.0f, 5.0f, -2.5f, 7.0f}, XMFLOAT4{1.0f, 0.0f, 0.0f, 1.0f}}, // a 0
+		Vertex{XMFLOAT4{2.5f, 0.0f, -2.5f, 7.0f}, XMFLOAT4{1.0f, 1.0f, 0.0f, 1.0f}}, //b 1
+		Vertex{XMFLOAT4{0.0f, 0.0f, 2.5f, 7.0f}, XMFLOAT4{0.0f, 0.0f, 0.0f, 1.0f}}, //c 2
+		Vertex{XMFLOAT4{-2.5f, 0.0f, -2.5f, 7.0f}, XMFLOAT4{1.0f, 0.0f, 1.0f, 1.0f}} //d 3
+	};
+
+	//массив точек, в которых располагаютс€ объекты
+	XMVECTOR objectsPositions[] = {
+		XMVectorSet(0.0f, 0.0f, 7.5f, 0.0f),
+		XMVectorSet(5.0f, 7.25f, 10.0f, 0.0f),
+		XMVectorSet(-2.5f, 2.5f, 1.0f, 0.0f)
 	};
 
 	// создание буфера вершин, компил€ци€ шейдеров, св€зывание шейдеров и буфера вершин с конвейером
@@ -174,17 +182,17 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	}
 
 	// инициализаци€ матриц
-	MatricesBuffer matricesWVP;
-	ZeroMemory(&matricesWVP, sizeof(MatricesBuffer));
+	//MatricesBuffer matricesWVP;
+	//ZeroMemory(&matricesWVP, sizeof(MatricesBuffer));
 
 	float vecAngle = -XM_PIDIV4;
 	XMVECTOR eye = XMVectorSet(1.0f, 1.5f, 0.0f, 1.0f); // откуда смотрим
 	// Ћучше использовать XMScalarSinExt, XMScalarCosExt вместо XMScalarSin, XMScalarCos, чтобы получать хорошое округление чисел
-	XMVECTOR zAxis = XMVectorSet(0.0f, XMScalarSinEst(vecAngle), XMScalarCosEst(vecAngle), 1.0f); // куда смотрим. 
-	XMVECTOR yAxis = XMVectorSet(0.0f, XMScalarCosEst(XM_PIDIV4), XMScalarSinEst(XM_PIDIV4), 1.0f); // нормаль к тому, куда смотрим
+	//XMVECTOR zAxis = XMVectorSet(0.0f, XMScalarSinEst(vecAngle), XMScalarCosEst(vecAngle), 1.0f); // куда смотрим. 
+	//XMVECTOR yAxis = XMVectorSet(0.0f, XMScalarCosEst(XM_PIDIV4), XMScalarSinEst(XM_PIDIV4), 1.0f); // нормаль к тому, куда смотрим
 
-	//XMVECTOR zAxis = XMVectorSet(0.0f, 0.0f, -1.0f, 1.0f); // куда смотрим. 
-	//XMVECTOR yAxis = XMVectorSet(0.0f, 1.0f, 0.0f, 1.0f); // нормаль к тому, куда смотрим
+	XMVECTOR zAxis = XMVectorSet(0.0f, 0.0f, -1.0f, 1.0f); // куда смотрим. 
+	XMVECTOR yAxis = XMVectorSet(0.0f, 1.0f, 0.0f, 1.0f); // нормаль к тому, куда смотрим
 
 	//NewCoordinateSystemMatrix(eye, zAxis, yAxis, &matricesWVP.mView);
 	matricesWVP.mView = XMMatrixLookToLH(eye, zAxis, yAxis);
@@ -207,7 +215,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			DispatchMessage(&msg);
 		}
 		UpdateScene();
-		DrawScene();
+		DrawScene(objectsPositions);
 	}
 	// окночание работы приложени€
 	ReleaseObjects();
@@ -479,7 +487,7 @@ void UpdateScene() {
 	
 };
 
-void DrawScene() {
+void DrawScene(XMVECTOR* objectsPositionsArray) {
 	// ÷вет пиксел€
 	const FLOAT backgroundColor[] = { 0.0f, 0.0f, 1.0f, 1.0f };
 
@@ -489,8 +497,15 @@ void DrawScene() {
 	// оччистка depth-stencil буфера
 	g_pImmediateContext->ClearDepthStencilView(g_pDepthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
 
+	for (int i = 0; i < 3; ++i) {
+		SetWorldMatrix(objectsPositionsArray[i], XMVectorSet(1.0f, 1.0f, 1.0f, 0.0f), &matricesWVP.mWorld);
+		g_pImmediateContext->UpdateSubresource(constantBufferArray[0], 0, NULL, &matricesWVP, 0, 0);
+
+		g_pImmediateContext->DrawIndexed(12, 0, 0);
+	}
+
 	// отрисовка примитивов 
-	g_pImmediateContext->DrawIndexed(12, 0, 0);
+	//g_pImmediateContext->DrawIndexed(12, 0, 0);
 
 	// ¬ывод на дисплей поверхности Back Buffer
 	g_pSwapChain->Present(0, 0);
@@ -502,7 +517,7 @@ HRESULT CompileShader(LPCWSTR srcName, LPCSTR entryPoint, LPCSTR target, ID3DBlo
 	HANDLE errorsFileHandle = NULL;
 	DWORD bytesWritten = NULL;
 
-	hr = D3DCompileFromFile(srcName, NULL, NULL, entryPoint, target, NULL, NULL, buffer, &errorsBuffer);
+	hr = D3DCompileFromFile(srcName, NULL, NULL, entryPoint, target, NULL , NULL, buffer, &errorsBuffer);
 	// вывод ошибок компил€ции, если они есть
 	if (FAILED(hr)) {
 		if (errorsBuffer != NULL) {
@@ -595,8 +610,8 @@ HRESULT InitGeometry(Vertex* vertexArray, LPCWSTR vertexShaderName, LPCWSTR pixe
 	
 	// ќписание Input-Layout Object
 	D3D11_INPUT_ELEMENT_DESC layout[] = {
-		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
-		{"COLOR", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0}
+		{"POSITION", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
+		{"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 16, D3D11_INPUT_PER_VERTEX_DATA, 0}
 	};
 	
 	//  оличество элементов в Input-Layout Object
@@ -727,8 +742,8 @@ void SetProjectionMatrix(MatricesBuffer* pMatricesBuffer, FLOAT angleHoriz, FLOA
 		newCoeff = 1.0f / (1.0f + tangentAngle);
 		pMatricesBuffer->mProjection.r[0] = XMVectorSet(newCoeff, 0.0f, 0.0f, 0.0f);
 		pMatricesBuffer->mProjection.r[1] = XMVectorSet(0.0f, newCoeff, 0.0f, 0.0f);
-		pMatricesBuffer->mProjection.r[2] = XMVectorSet(0.0f, 0.0f, 0.25f * newCoeff, 0.0f);
-		pMatricesBuffer->mProjection.r[3] = XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
+		pMatricesBuffer->mProjection.r[2] = XMVectorSet(0.0f, 0.0f, 0.25f * newCoeff, 0.25f * newCoeff); // 0.25f * newCoeff
+		pMatricesBuffer->mProjection.r[3] = XMVectorSet(0.0f, 0.0f, -0.2f, 2.0f);
 
 		SaveProportions(pMatricesBuffer, g_hWnd);
 	}
@@ -861,7 +876,7 @@ HRESULT NewCoordinateSystemMatrix(XMVECTOR point, XMVECTOR zAxis, XMVECTOR yAxis
 	return S_OK;
 };
 void SetWorldMatrix(XMVECTOR point, XMVECTOR scale, XMMATRIX* worldMatrix) {
-	*worldMatrix = XMMatrixTranslationFromVector(point) * XMMatrixScalingFromVector(scale);
+	*worldMatrix = XMMatrixTranspose(XMMatrixScalingFromVector(scale) * XMMatrixTranslationFromVector(point));
 };
 
 void InvertIndices(WORD* indicesArray, int size) {
