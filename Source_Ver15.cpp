@@ -149,9 +149,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 	//массив точек, в которых располагаютс€ объекты
 	XMVECTOR objectsPositions[] = {
-		XMVectorSet(0.0f, 0.0f, 7.5f, 0.0f),
-		XMVectorSet(5.0f, 7.25f, 10.0f, 0.0f),
-		XMVectorSet(-2.5f, 2.5f, 1.0f, 0.0f)
+		XMVectorSet(0.0f, 0.0f, -7.5f, 0.0f),
+		XMVectorSet(0.0f, 1.25f, -3.0f, 0.0f),
+		XMVectorSet(-2.5f, 2.5f, 5.0f, 0.0f)
 	};
 
 	// создание буфера вершин, компил€ци€ шейдеров, св€зывание шейдеров и буфера вершин с конвейером
@@ -186,12 +186,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	//ZeroMemory(&matricesWVP, sizeof(MatricesBuffer));
 
 	float vecAngle = -XM_PIDIV4;
-	XMVECTOR eye = XMVectorSet(1.0f, 1.5f, 0.0f, 1.0f); // откуда смотрим
+	XMVECTOR eye = XMVectorSet(0.0f, 0.5f, -3.0f, 1.0f); // откуда смотрим
 	// Ћучше использовать XMScalarSinExt, XMScalarCosExt вместо XMScalarSin, XMScalarCos, чтобы получать хорошое округление чисел
 	//XMVECTOR zAxis = XMVectorSet(0.0f, XMScalarSinEst(vecAngle), XMScalarCosEst(vecAngle), 1.0f); // куда смотрим. 
 	//XMVECTOR yAxis = XMVectorSet(0.0f, XMScalarCosEst(XM_PIDIV4), XMScalarSinEst(XM_PIDIV4), 1.0f); // нормаль к тому, куда смотрим
 
-	XMVECTOR zAxis = XMVectorSet(0.0f, 0.0f, -1.0f, 1.0f); // куда смотрим. 
+	XMVECTOR zAxis = XMVectorSet(0.0f, 0.0f, 1.0f, 1.0f); // куда смотрим. 
 	XMVECTOR yAxis = XMVectorSet(0.0f, 1.0f, 0.0f, 1.0f); // нормаль к тому, куда смотрим
 
 	//NewCoordinateSystemMatrix(eye, zAxis, yAxis, &matricesWVP.mView);
@@ -201,6 +201,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 	// инициализаци€ матрицы проекции
 	SetProjectionMatrix(&matricesWVP, XM_PI / 5.0f, XM_PI / 25.0f, true);
+	//matricesWVP.mProjection = XMMatrixPerspectiveFovLH(XM_PI / 5.0f, 2.4f, 0.0001f, 1.0f);
+	//g_pImmediateContext->UpdateSubresource(constantBufferArray[0], 0, 0, &matricesWVP, 0, 0);
 
 	// матрица поворота вокруг вектора
 	XMMATRIX rotationAroundVector;
@@ -358,8 +360,8 @@ createDeviceDeviceContextSwapChainLoopExit:
 	viewPort.Width = widthParam;
 	viewPort.Height = heightParam;
 	// ”ровень удаленности объектов, которые будут отображатьс€ в view port
-	viewPort.MinDepth = 0;
-	viewPort.MaxDepth = 1;
+	viewPort.MinDepth = 0.0f;
+	viewPort.MaxDepth = 1.0f;
 
 	// —в€зывание view port с графическим конвейером
 	g_pImmediateContext->RSSetViewports(1, &viewPort);
@@ -719,6 +721,10 @@ void SetProjectionMatrix(MatricesBuffer* pMatricesBuffer, FLOAT angleHoriz, FLOA
 	FLOAT tangentAngle;
 	FLOAT newCoeff;
 
+	FLOAT nearZ = 0.5f;
+	FLOAT farZ = 1.2f;
+	FLOAT mulCoeff = (farZ - nearZ + 1.0f) / (farZ - nearZ);
+
 	if (saveProportionsFlag == false) {
 		XMScalarSinCos(&sinAngle, &cosAngle, angleHoriz);
 		tangentAngle = sinAngle / cosAngle;
@@ -742,8 +748,8 @@ void SetProjectionMatrix(MatricesBuffer* pMatricesBuffer, FLOAT angleHoriz, FLOA
 		newCoeff = 1.0f / (1.0f + tangentAngle);
 		pMatricesBuffer->mProjection.r[0] = XMVectorSet(newCoeff, 0.0f, 0.0f, 0.0f);
 		pMatricesBuffer->mProjection.r[1] = XMVectorSet(0.0f, newCoeff, 0.0f, 0.0f);
-		pMatricesBuffer->mProjection.r[2] = XMVectorSet(0.0f, 0.0f, 0.25f * newCoeff, 0.25f * newCoeff); // 0.25f * newCoeff
-		pMatricesBuffer->mProjection.r[3] = XMVectorSet(0.0f, 0.0f, -0.2f, 2.0f);
+		pMatricesBuffer->mProjection.r[2] = XMVectorSet(0.0f, 0.0f, mulCoeff * 0.25f * newCoeff, 0.25f * newCoeff); // 0.25f * newCoeff
+		pMatricesBuffer->mProjection.r[3] = XMVectorSet(0.0f, 0.0f, -nearZ * mulCoeff, 1.0f - nearZ);
 
 		SaveProportions(pMatricesBuffer, g_hWnd);
 	}
