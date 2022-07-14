@@ -721,8 +721,8 @@ void SetProjectionMatrix(MatricesBuffer* pMatricesBuffer, FLOAT angleHoriz, FLOA
 	FLOAT tangentAngle;
 	FLOAT newCoeff;
 
-	FLOAT nearZ = 0.5f;
-	FLOAT farZ = 1.2f;
+	FLOAT nearZ = 0.4f; // ближн€€ плоскоть отсечени€
+	FLOAT farZ = 1.2f; // дальн€€ плоскость отсечени€
 	FLOAT mulCoeff = (farZ - nearZ + 1.0f) / (farZ - nearZ);
 
 	if (saveProportionsFlag == false) {
