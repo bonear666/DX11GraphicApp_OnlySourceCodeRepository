@@ -20,16 +20,24 @@ struct VS_OUTPUT {
 
 VS_OUTPUT main(float4 pos : POSITION, float4 color : COLOR) 
 {
-    float4 newPos;
     
-    // поворот вокруг точки (0; 0; 0.5)
-    newPos.x = pos.x * cos(angle) - (pos.z - 0.5) * sin(angle);
+    float4 newPos;
+    // поворот вокруг точки (0; 0; 5) и вектора (0; 1; 0)
+    newPos.x = pos.x * cos(angle) - (pos.z - 5) * sin(angle);
     newPos.y = pos.y;
-    newPos.z = 0.5 + pos.x * sin(angle) + (pos.z - 0.5) * cos(angle);
+    newPos.z = 5 + pos.x * sin(angle) + (pos.z - 5) * cos(angle);
     newPos.w = pos.w;
 
-    newPos = mul(view, newPos);
+    newPos = mul(newPos, world);
+    newPos = mul(newPos, view);
+
+    //float coeff0 = 0.25f * 0.579f;
+    //float coeff = newPos.z * coeff0 + newPos.w;
+
     newPos = mul(newPos, projection);
+
+    //newPos.x = newPos.x * newPos.w / coeff;
+    //newPos.y = newPos.y * newPos.w / coeff;
 
     VS_OUTPUT output;
     output.outPos = newPos;
