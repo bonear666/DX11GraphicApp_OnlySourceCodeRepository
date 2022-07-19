@@ -33,6 +33,7 @@ struct MatricesBuffer {
 	XMMATRIX mWorld;              // ћатрица мира
 	XMMATRIX mView;        // ћатрица вида
 	XMMATRIX mProjection;  // ћатрица проекции
+	XMMATRIX mRotationAroundAxis; // ћатрица поворота вокруг оси
 };
 
 // структура угла
@@ -100,7 +101,7 @@ HRESULT InitMatrices(WORD* indices);
 // ќбновление матриц
 void SetMatrices();
 // ќбновление проекционной матрицы (0 < angle < PI/2). angle = fov/2
-void SetProjectionMatrix(MatricesBuffer* pMatricesBuffer, FLOAT angleHoriz, FLOAT angleVert, BOOL saveProportionsFlag);
+void SetProjectionMatrix(MatricesBuffer* pMatricesBuffer, FLOAT angleHoriz, FLOAT angleVert, FLOAT nearZ, FLOAT farZ, BOOL saveProportionsFlag);
 // —охранение пропорций объектов, при выводе в окно. ѕропорции сохран€ютс€ в соответствии с осью, у которой меньше единичный отрезок. 
 void SaveProportions(MatricesBuffer* pMatricesBuffer, HWND hWnd);
 // Ќаибольший элемент
@@ -123,6 +124,8 @@ XMVECTOR FindOrthogonalNormalizedVector(XMVECTOR vector);
 void RotationAroundAxis(XMVECTOR yAxis, XMVECTOR point, FLOAT angle, XMMATRIX* outputMatrix);
 // ќбновление проекционной матрицы, с учетом рассто€ни€ от камеры до ближней плоскости отсечени€ (0 < angle < PI/2). angle = fov/2
 // camera Distance <= nearZ
+// использу€ эту функцию можно визуально опознать ближнюю плоскость отсечени€
+// cameraDistance - значение рассто€ни€ от камеры до ближней плоскости отсечени€, задаетс€ деленным на W координату
 void SetProjectionMatrixWithCameraDistance(MatricesBuffer* pMatricesBuffer, FLOAT angleHoriz, FLOAT angleVert, FLOAT nearZ, FLOAT farZ, FLOAT cameraDistance, BOOL saveProportionsFlag);
 
 // √лавна€ функци€, точка входа
@@ -152,9 +155,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 	//массив точек, в которых располагаютс€ объекты
 	XMVECTOR objectsPositions[] = {
-		XMVectorSet(0.0f, 0.0f, -0.5f, 0.0f),
-		XMVectorSet(0.0f, 0.25f, 3.0f, 0.0f),
-		XMVectorSet(-2.5f, 2.5f, 5.0f, 0.0f)
+		XMVectorSet(0.0f, 0.0f, -0.4f, 0.0f),
+		XMVectorSet(0.0f, 1.25f, 7.0f, 0.0f),
+		XMVectorSet(-2.5f, 0.5f, 5.0f, 0.0f)
 	};
 
 	// создание буфера вершин, компил€ци€ шейдеров, св€зывание шейдеров и буфера вершин с конвейером
@@ -189,7 +192,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	//ZeroMemory(&matricesWVP, sizeof(MatricesBuffer));
 
 	float vecAngle = -XM_PIDIV4;
-	XMVECTOR eye = XMVectorSet(0.0f, 0.5f, -3.0f, 1.0f); // откуда смотрим
+	XMVECTOR eye = XMVectorSet(0.0f, 0.3f, -3.0f, 1.0f); // откуда смотрим
 	// Ћучше использовать XMScalarSinExt, XMScalarCosExt вместо XMScalarSin, XMScalarCos, чтобы получать хорошое округление чисел
 	//XMVECTOR zAxis = XMVectorSet(0.0f, XMScalarSinEst(vecAngle), XMScalarCosEst(vecAngle), 1.0f); // куда смотрим. 
 	//XMVECTOR yAxis = XMVectorSet(0.0f, XMScalarCosEst(XM_PIDIV4), XMScalarSinEst(XM_PIDIV4), 1.0f); // нормаль к тому, куда смотрим
@@ -203,8 +206,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	matricesWVP.mView = XMMatrixTranspose(matricesWVP.mView); 
 
 	// инициализаци€ матрицы проекции
-	//SetProjectionMatrix(&matricesWVP, XM_PI / 5.0f, XM_PI / 25.0f, true);
-	SetProjectionMatrixWithCameraDistance(&matricesWVP, XM_PI / 5.0f, XM_PI / 25.0f, 0.1f, 1.2f, 0.2f, true);
+	//SetProjectionMatrix(&matricesWVP, XM_PI / 5.0f, XM_PI / 25.0f, 0.5f, 1.2f, true);
+	SetProjectionMatrixWithCameraDistance(&matricesWVP, XM_PI / 5.0f, XM_PI / 25.0f, 0.3f, 2.2f, 0.0001f, true);
 	//matricesWVP.mProjection = XMMatrixPerspectiveFovLH(XM_PI / 5.0f, 2.4f, 0.0001f, 1.0f);
 	//g_pImmediateContext->UpdateSubresource(constantBufferArray[0], 0, 0, &matricesWVP, 0, 0);
 
@@ -718,7 +721,7 @@ HRESULT InitMatrices(WORD* indices) {
 	return S_OK;
 };
 
-void SetProjectionMatrix(MatricesBuffer* pMatricesBuffer, FLOAT angleHoriz, FLOAT angleVert, BOOL saveProportionsFlag) {
+void SetProjectionMatrix(MatricesBuffer* pMatricesBuffer, FLOAT angleHoriz, FLOAT angleVert, FLOAT nearZ, FLOAT farZ, BOOL saveProportionsFlag) {
 	// (0 < angle < PI/2) => (0 < tg(angle) < +inf) => (0 < newCoeff < 1)
 
 	FLOAT sinAngle;
@@ -726,8 +729,8 @@ void SetProjectionMatrix(MatricesBuffer* pMatricesBuffer, FLOAT angleHoriz, FLOA
 	FLOAT tangentAngle;
 	FLOAT newCoeff;
 
-	FLOAT nearZ = 2.5f; // ближн€€ плоскоть отсечени€
-	FLOAT farZ = 3.2f; // дальн€€ плоскость отсечени€
+	//FLOAT nearZ = 2.5f; // ближн€€ плоскоть отсечени€
+	//FLOAT farZ = 3.2f; // дальн€€ плоскость отсечени€
 	FLOAT mulCoeff = (farZ - nearZ + 1.0f) / (farZ - nearZ);
 
 	if (saveProportionsFlag == false) {
@@ -768,11 +771,11 @@ void SetProjectionMatrixWithCameraDistance(MatricesBuffer* pMatricesBuffer, FLOA
 	FLOAT tangentAngle;
 	FLOAT newCoeff;
 
-	nearZ = 0.6f; // ближн€€ плоскоть отсечени€, деленна€ на W координату
-	farZ = 4.2f; // дальн€€ плоскость отсечени€, деленна€ на W координату
+	//nearZ = 0.6f; // ближн€€ плоскоть отсечени€, деленна€ на W координату
+	//farZ = 4.2f; // дальн€€ плоскость отсечени€, деленна€ на W координату
 
-	FLOAT zCoeff = (farZ - nearZ + cameraDistance + 1.0f) / (farZ - nearZ);
-	FLOAT wCoeff = farZ - nearZ + cameraDistance + 1.0f - farZ * zCoeff;
+	FLOAT zCoeff = (farZ - nearZ + cameraDistance) / (farZ - nearZ);
+	FLOAT wCoeff = farZ - nearZ + cameraDistance - farZ * zCoeff;
 
 	if (saveProportionsFlag == false) {
 		XMScalarSinCos(&sinAngle, &cosAngle, angleHoriz);
@@ -798,7 +801,7 @@ void SetProjectionMatrixWithCameraDistance(MatricesBuffer* pMatricesBuffer, FLOA
 		pMatricesBuffer->mProjection.r[0] = XMVectorSet(newCoeff, 0.0f, 0.0f, 0.0f);
 		pMatricesBuffer->mProjection.r[1] = XMVectorSet(0.0f, newCoeff, 0.0f, 0.0f);
 		pMatricesBuffer->mProjection.r[2] = XMVectorSet(0.0f, 0.0f, zCoeff * 0.25f * newCoeff, 0.25f * newCoeff); // 0.25f * newCoeff
-		pMatricesBuffer->mProjection.r[3] = XMVectorSet(0.0f, 0.0f, wCoeff, -nearZ + cameraDistance + 1.0f);
+		pMatricesBuffer->mProjection.r[3] = XMVectorSet(0.0f, 0.0f, wCoeff, cameraDistance - nearZ);
 
 		SaveProportions(pMatricesBuffer, g_hWnd);
 	}
