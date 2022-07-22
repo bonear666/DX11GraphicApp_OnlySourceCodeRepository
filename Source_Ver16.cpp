@@ -207,7 +207,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 	// инициализация матрицы проекции
 	//SetProjectionMatrix(&matricesWVP, XM_PI / 5.0f, XM_PI / 25.0f, 0.5f, 1.2f, true);
-	SetProjectionMatrixWithCameraDistance(&matricesWVP, XM_PI / 5.0f, XM_PI / 25.0f, 0.3f, 2.2f, 0.0001f, true);
+	SetProjectionMatrixWithCameraDistance(&matricesWVP, XM_PI / 5.0f, XM_PI / 25.0f, 0.5f, 2.2f, 0.0001f, true);
 	//matricesWVP.mProjection = XMMatrixPerspectiveFovLH(XM_PI / 5.0f, 2.4f, 0.0001f, 1.0f);
 	//g_pImmediateContext->UpdateSubresource(constantBufferArray[0], 0, 0, &matricesWVP, 0, 0);
 
