@@ -101,6 +101,8 @@ HRESULT InitMatrices(WORD* indices);
 // ќбновление матриц
 void SetMatrices();
 // ќбновление проекционной матрицы (0 < angle < PI/2). angle = fov/2
+// nearZ, farZ координаты плоскости отсечений, деленные на W
+// nearZ не должен быть равен нулю, так как исход€ из формулы, Z координата вершины после умножени€ на матрицу проекции будет всегда равна 1
 void SetProjectionMatrix(MatricesBuffer* pMatricesBuffer, FLOAT angleHoriz, FLOAT angleVert, FLOAT nearZ, FLOAT farZ, BOOL saveProportionsFlag);
 // —охранение пропорций объектов, при выводе в окно. ѕропорции сохран€ютс€ в соответствии с осью, у которой меньше единичный отрезок. 
 void SaveProportions(MatricesBuffer* pMatricesBuffer, HWND hWnd);
@@ -126,6 +128,8 @@ void RotationAroundAxis(XMVECTOR yAxis, XMVECTOR point, FLOAT angle, XMMATRIX* o
 // camera Distance <= nearZ
 // использу€ эту функцию можно визуально опознать ближнюю плоскость отсечени€
 // cameraDistance - значение рассто€ни€ от камеры до ближней плоскости отсечени€, задаетс€ деленным на W координату
+// nearZ, farZ координаты плоскости отсечений, деленные на W
+// cameraDistance не должен быть равен нулю, так как исход€ из формулы, Z координата вершины после умножени€ на матрицу проекции будет всегда равна 1
 void SetProjectionMatrixWithCameraDistance(MatricesBuffer* pMatricesBuffer, FLOAT angleHoriz, FLOAT angleVert, FLOAT nearZ, FLOAT farZ, FLOAT cameraDistance, BOOL saveProportionsFlag);
 
 // √лавна€ функци€, точка входа
@@ -156,7 +160,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	//массив точек, в которых располагаютс€ объекты
 	XMVECTOR objectsPositions[] = {
 		XMVectorSet(0.0f, 0.0f, -0.4f, 0.0f),
-		XMVectorSet(0.0f, 1.25f, 7.0f, 0.0f),
+		XMVectorSet(0.0f, 1.25f, 10.0f, 0.0f),
 		XMVectorSet(-2.5f, 0.5f, 5.0f, 0.0f)
 	};
 
@@ -206,8 +210,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	matricesWVP.mView = XMMatrixTranspose(matricesWVP.mView); 
 
 	// инициализаци€ матрицы проекции
-	//SetProjectionMatrix(&matricesWVP, XM_PI / 5.0f, XM_PI / 25.0f, 0.5f, 1.2f, true);
-	SetProjectionMatrixWithCameraDistance(&matricesWVP, XM_PI / 5.0f, XM_PI / 25.0f, 0.5f, 2.2f, 0.0001f, true);
+	SetProjectionMatrix(&matricesWVP, XM_PI / 5.0f, XM_PI / 25.0f, 0.4f, 2.0f, true);
+	//SetProjectionMatrixWithCameraDistance(&matricesWVP, XM_PI / 5.0f, XM_PI / 25.0f, 0.5f, 2.2f, 0.0001f, true);
 	//matricesWVP.mProjection = XMMatrixPerspectiveFovLH(XM_PI / 5.0f, 2.4f, 0.0001f, 1.0f);
 	//g_pImmediateContext->UpdateSubresource(constantBufferArray[0], 0, 0, &matricesWVP, 0, 0);
 
@@ -483,7 +487,7 @@ void UpdateScene() {
 	if (angleCBufferData.angle0 >= XM_2PI) {
 		angleCBufferData.angle0 = angleCBufferData.angle0 - XM_2PI;
 	}
-	angleCBufferData.angle0 += 0.001f;
+	angleCBufferData.angle0 += 0.0001f;
 
 	/*
 	D3D11_MAPPED_SUBRESOURCE angleCBufferUpdateData;
@@ -731,7 +735,10 @@ void SetProjectionMatrix(MatricesBuffer* pMatricesBuffer, FLOAT angleHoriz, FLOA
 
 	//FLOAT nearZ = 2.5f; // ближн€€ плоскоть отсечени€
 	//FLOAT farZ = 3.2f; // дальн€€ плоскость отсечени€
-	FLOAT mulCoeff = (farZ - nearZ + 1.0f) / (farZ - nearZ);
+	//FLOAT mulCoeff = (farZ - nearZ + 1.0f) / (farZ - nearZ);
+
+	FLOAT zCoeff = farZ / (farZ - nearZ);
+	FLOAT wCoeff = farZ - farZ * zCoeff;
 
 	if (saveProportionsFlag == false) {
 		XMScalarSinCos(&sinAngle, &cosAngle, angleHoriz);
@@ -756,8 +763,8 @@ void SetProjectionMatrix(MatricesBuffer* pMatricesBuffer, FLOAT angleHoriz, FLOA
 		newCoeff = 1.0f / (1.0f + tangentAngle);
 		pMatricesBuffer->mProjection.r[0] = XMVectorSet(newCoeff, 0.0f, 0.0f, 0.0f);
 		pMatricesBuffer->mProjection.r[1] = XMVectorSet(0.0f, newCoeff, 0.0f, 0.0f);
-		pMatricesBuffer->mProjection.r[2] = XMVectorSet(0.0f, 0.0f, mulCoeff * 0.25f * newCoeff, 0.25f * newCoeff); // 0.25f * newCoeff
-		pMatricesBuffer->mProjection.r[3] = XMVectorSet(0.0f, 0.0f, -nearZ * mulCoeff, 1.0f - nearZ);
+		pMatricesBuffer->mProjection.r[2] = XMVectorSet(0.0f, 0.0f, zCoeff * 0.25f * newCoeff, 0.25f * newCoeff); // 0.25f * newCoeff
+		pMatricesBuffer->mProjection.r[3] = XMVectorSet(0.0f, 0.0f, wCoeff, 0.0f);
 
 		SaveProportions(pMatricesBuffer, g_hWnd);
 	}
