@@ -13,6 +13,7 @@
 #include <d3dcompiler.h>
 #include <iostream>
 #include <cmath>
+#include <hidusage.h>
 
 // ОПИСАНИЕ СТРУКТУР
 
@@ -210,14 +211,22 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	matricesWVP.mView = XMMatrixTranspose(matricesWVP.mView); 
 
 	// инициализация матрицы проекции
-	SetProjectionMatrix(&matricesWVP, XM_PI / 5.0f, XM_PI / 25.0f, 0.4f, 2.0f, true);
+	SetProjectionMatrix(&matricesWVP, XM_PI / 5.0f, XM_PI / 25.0f, 0.0001f, 2.5f, true);
 	//SetProjectionMatrixWithCameraDistance(&matricesWVP, XM_PI / 5.0f, XM_PI / 25.0f, 0.5f, 2.2f, 0.0001f, true);
-	//matricesWVP.mProjection = XMMatrixPerspectiveFovLH(XM_PI / 5.0f, 2.4f, 0.0001f, 1.0f);
-	//g_pImmediateContext->UpdateSubresource(constantBufferArray[0], 0, 0, &matricesWVP, 0, 0);
 
-	// матрица поворота вокруг вектора
-	XMMATRIX rotationAroundVector;
-	RotationAroundAxis(g_XMIdentityR2, g_XMZero, angleCBufferData.angle0, &rotationAroundVector);
+	// регистрация устройств клавиатуры и мыши
+	RAWINPUTDEVICE rid[2];
+	// клавиатура
+	rid[0].usUsagePage = HID_USAGE_PAGE_GENERIC;
+	rid[0].usUsage = HID_USAGE_GENERIC_KEYBOARD;
+	rid[0].dwFlags = 0;
+	rid[0].usUsage = 0;
+	// мышь
+	rid[1].usUsagePage = HID_USAGE_PAGE_GENERIC;
+	rid[1].usUsage = HID_USAGE_GENERIC_MOUSE;
+	rid[1].dwFlags = 0;
+	rid[1].usUsage = 0;
+	RegisterRawInputDevices(rid, 2, sizeof(rid[0]));
 
 	MSG msg;// структура, описывающая сообщение
 	ZeroMemory(&msg, sizeof(MSG));
@@ -484,6 +493,7 @@ HRESULT MyCreateWindow(CONST WCHAR* wndClassNameParam, CONST WCHAR* wndNameParam
 };
 
 void UpdateScene() {
+	// обновление угла поворота
 	if (angleCBufferData.angle0 >= XM_2PI) {
 		angleCBufferData.angle0 = angleCBufferData.angle0 - XM_2PI;
 	}
@@ -499,6 +509,12 @@ void UpdateScene() {
 	// обновление значений угла
 	g_pImmediateContext->UpdateSubresource(constantBufferArray[1], 0, NULL, &angleCBufferData, 0, 0); 
 	
+	// обновление матрицы поворота вокруг оси
+	// проверяю то, что сам написал
+	//RotationAroundAxis(g_XMIdentityR1, g_XMZero, angleCBufferData.angle0, &matricesWVP.mRotationAroundAxis);
+	//matricesWVP.mRotationAroundAxis = XMMatrixTranspose(matricesWVP.mRotationAroundAxis);
+
+	matricesWVP.mRotationAroundAxis = XMMatrixTranspose(XMMatrixRotationAxis(g_XMIdentityR1, angleCBufferData.angle0));
 };
 
 void DrawScene(XMVECTOR* objectsPositionsArray) {
@@ -940,6 +956,7 @@ HRESULT NewCoordinateSystemMatrix(XMVECTOR point, XMVECTOR zAxis, XMVECTOR yAxis
 
 	return S_OK;
 };
+
 void SetWorldMatrix(XMVECTOR point, XMVECTOR scale, XMMATRIX* worldMatrix) {
 	*worldMatrix = XMMatrixTranspose(XMMatrixScalingFromVector(scale) * XMMatrixTranslationFromVector(point));
 };
@@ -1026,6 +1043,7 @@ XMVECTOR FindOrthogonalNormalizedVector(XMVECTOR vector) {
 };
 
 void RotationAroundAxis(XMVECTOR yAxis, XMVECTOR point, FLOAT angle, XMMATRIX* outputMatrix) {
+	yAxis = XMVector3Normalize(yAxis);
 	XMVECTOR zAxis = FindOrthogonalNormalizedVector(yAxis);
 	XMMATRIX offsetMatrix = XMMatrixTranslationFromVector(_mm_mul_ps(point, XMVectorSet(-1.0f, -1.0f, -1.0f, 0.0f))); // матрица переноса вершины, которая будет поворачиваться вокруг оси, на -point
 	XMMATRIX backOffsetMatrix = XMMatrixTranslationFromVector(point); // матрица переноса перенесенной вершины, которую уже повернули вокруг оси, на +point
