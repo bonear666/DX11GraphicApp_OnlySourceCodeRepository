@@ -78,6 +78,12 @@ ID3D11DepthStencilView* g_pDepthStencilView = NULL; // ресурсы depth буфера
 ID3D11DepthStencilState* pDSState = NULL; // состо€ние depth-stencil теста
 ID3D11RasterizerState* pRasterizerState = NULL; // состо€ние растеризатора 
 MatricesBuffer matricesWVP; // матрицы
+XMVECTOR objectsPositions[] = { //массив точек, в которых располагаютс€ объекты
+	XMVectorSet(0.0f, 0.0f, -0.4f, 0.0f),
+	XMVectorSet(0.0f, 1.25f, 10.0f, 0.0f),
+	XMVectorSet(-2.5f, 0.5f, 5.0f, 0.0f)
+};
+XMMATRIX moveAheadMatrix = XMMatrixTranspose(XMMatrixTranslation(0.0f, 0.0f, 0.0001f));
 
 //ѕ–≈ƒ¬ј–»“≈Ћ№Ќџ≈ ќЅЏя¬Ћ≈Ќ»я ‘”Ќ ÷»…
 
@@ -158,13 +164,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		Vertex{XMFLOAT4{-2.5f, 0.0f, -2.5f, 7.0f}, XMFLOAT4{1.0f, 0.0f, 1.0f, 1.0f}} //d 3
 	};
 
-	//массив точек, в которых располагаютс€ объекты
-	XMVECTOR objectsPositions[] = {
-		XMVectorSet(0.0f, 0.0f, -0.4f, 0.0f),
-		XMVectorSet(0.0f, 1.25f, 10.0f, 0.0f),
-		XMVectorSet(-2.5f, 0.5f, 5.0f, 0.0f)
-	};
-
 	// создание буфера вершин, компил€ци€ шейдеров, св€зывание шейдеров и буфера вершин с конвейером
 	hr = InitGeometry(vertexArray, L"TriangleVertexShader.hlsl", L"TrianglePixelShader.hlsl", "main", "main");
 	if (FAILED(hr)) {
@@ -214,20 +213,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	SetProjectionMatrix(&matricesWVP, XM_PI / 5.0f, XM_PI / 25.0f, 0.0001f, 2.5f, true);
 	//SetProjectionMatrixWithCameraDistance(&matricesWVP, XM_PI / 5.0f, XM_PI / 25.0f, 0.5f, 2.2f, 0.0001f, true);
 
-	// регистраци€ устройств клавиатуры и мыши
-	RAWINPUTDEVICE rid[2];
-	// клавиатура
-	rid[0].usUsagePage = HID_USAGE_PAGE_GENERIC;
-	rid[0].usUsage = HID_USAGE_GENERIC_KEYBOARD;
-	rid[0].dwFlags = 0;
-	rid[0].usUsage = 0;
-	// мышь
-	rid[1].usUsagePage = HID_USAGE_PAGE_GENERIC;
-	rid[1].usUsage = HID_USAGE_GENERIC_MOUSE;
-	rid[1].dwFlags = 0;
-	rid[1].usUsage = 0;
-	RegisterRawInputDevices(rid, 2, sizeof(rid[0]));
-
 	MSG msg;// структура, описывающа€ сообщение
 	ZeroMemory(&msg, sizeof(MSG));
 
@@ -253,6 +238,29 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 	HDC hdc;
 
 	switch (message) {
+	// обработка сообщений от мыши или клавиатуры
+	case(WM_INPUT):
+		UINT dwSize;
+		static BYTE lpRawInput[sizeof(RAWINPUT)];
+
+		GetRawInputData((HRAWINPUT) lParam, RID_INPUT, lpRawInput, &dwSize, sizeof(RAWINPUTHEADER));
+		if (((RAWINPUT*)lpRawInput)->header.dwType == RIM_TYPEKEYBOARD) {
+			USHORT pressedKey = ((RAWINPUT*)lpRawInput)->data.keyboard.VKey;
+
+			switch (pressedKey) {
+			case(0x57):// W
+				matricesWVP.mView = matricesWVP.mView * moveAheadMatrix;
+				UpdateScene();
+				DrawScene(objectsPositions);
+				break;
+
+			default:
+				UpdateScene();
+				DrawScene(objectsPositions);
+				break;
+			}
+		}
+		break;
 
 	case(WM_PAINT):
 		// заполнение структуры ps, и очистка Update Region
@@ -481,6 +489,21 @@ HRESULT MyCreateWindow(CONST WCHAR* wndClassNameParam, CONST WCHAR* wndNameParam
 	if (RegisterClassEx(&wndClass) == 0) {
 		return E_FAIL;
 	}
+
+	// регистраци€ устройств клавиатуры и мыши
+	RAWINPUTDEVICE rid[2];
+	// клавиатура
+	rid[0].usUsagePage = HID_USAGE_PAGE_GENERIC;
+	rid[0].usUsage = HID_USAGE_GENERIC_KEYBOARD;
+	rid[0].dwFlags = RIDEV_NOLEGACY;
+	rid[0].usUsage = 0;
+	// мышь
+	rid[1].usUsagePage = HID_USAGE_PAGE_GENERIC;
+	rid[1].usUsage = HID_USAGE_GENERIC_MOUSE;
+	rid[1].dwFlags = RIDEV_NOLEGACY;
+	rid[1].usUsage = 0;
+	RegisterRawInputDevices(rid, 2, sizeof(rid[0]));
+
 	// —оздание окна
 	g_hWnd = CreateWindowEx(NULL, wndClassNameParam, wndNameParam, WS_OVERLAPPEDWINDOW, 0, 0, widthParam, heightParam, NULL, NULL, hInstanceParam, NULL);
 	if (g_hWnd == 0) {
