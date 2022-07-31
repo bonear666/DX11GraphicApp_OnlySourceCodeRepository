@@ -83,7 +83,9 @@ XMVECTOR objectsPositions[] = { //массив точек, в которых располагаются объекты
 	XMVectorSet(0.0f, 1.25f, 10.0f, 0.0f),
 	XMVectorSet(-2.5f, 0.5f, 5.0f, 0.0f)
 };
-XMMATRIX moveAheadMatrix = XMMatrixTranspose(XMMatrixTranslation(0.0f, 0.0f, 0.0001f));
+XMMATRIX moveAheadMatrix = XMMatrixTranspose(XMMatrixTranslation(0.0f, 0.0f, 0.4f)); // матрица движения вперед
+XMVECTOR moveAheadVector = XMVectorSet(0.0f, 0.0f, 0.0f, -0.4f); // вектор движения в положительном направлении оси
+XMVECTOR moveBackVector = XMVectorSet(0.0f, 0.0f, 0.0f, 0.4f); // вектор движения в отрицательном направлении оси
 
 //ПРЕДВАРИТЕЛЬНЫЕ ОБЪЯВЛЕНИЯ ФУНКЦИЙ
 
@@ -210,7 +212,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	matricesWVP.mView = XMMatrixTranspose(matricesWVP.mView); 
 
 	// инициализация матрицы проекции
-	SetProjectionMatrix(&matricesWVP, XM_PI / 5.0f, XM_PI / 25.0f, 0.0001f, 2.5f, true);
+	SetProjectionMatrix(&matricesWVP, XM_PI / 5.0f, XM_PI / 25.0f, 0.0001f, 6.5f, true);
 	//SetProjectionMatrixWithCameraDistance(&matricesWVP, XM_PI / 5.0f, XM_PI / 25.0f, 0.5f, 2.2f, 0.0001f, true);
 
 	MSG msg;// структура, описывающая сообщение
@@ -239,42 +241,60 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 
 	switch (message) {
 	// обработка сообщений от мыши или клавиатуры
-	case(WM_INPUT):
-		UINT dwSize;
+	case(WM_INPUT): {
+		UINT dwSize = sizeof(RAWINPUT);
 		static BYTE lpRawInput[sizeof(RAWINPUT)];
 
-		GetRawInputData((HRAWINPUT) lParam, RID_INPUT, lpRawInput, &dwSize, sizeof(RAWINPUTHEADER));
-		if (((RAWINPUT*)lpRawInput)->header.dwType == RIM_TYPEKEYBOARD) {
+		UINT resData = GetRawInputData((HRAWINPUT)lParam, RID_INPUT, lpRawInput, &dwSize, sizeof(RAWINPUTHEADER));
+		DWORD resData2 = ((RAWINPUT*)lpRawInput)->header.dwType;
+		if (resData2 == RIM_TYPEKEYBOARD) {
 			USHORT pressedKey = ((RAWINPUT*)lpRawInput)->data.keyboard.VKey;
 
 			switch (pressedKey) {
-			case(0x57):// W
-				matricesWVP.mView = matricesWVP.mView * moveAheadMatrix;
-				UpdateScene();
-				DrawScene(objectsPositions);
+			case(0x57): {// W
+				//matricesWVP.mView = matricesWVP.mView * moveAheadMatrix;
+				matricesWVP.mView.r[2] = matricesWVP.mView.r[2] + moveAheadVector;
 				break;
+			}
+			
+			case(0x53): { // S
+				matricesWVP.mView.r[2] = matricesWVP.mView.r[2] + moveBackVector;
+				break;
+			}
+
+			case(0x44): { // D
+				matricesWVP.mView.r[0] = matricesWVP.mView.r[0] + moveAheadVector;
+				break;
+			}
+
+			case(0x41): { // A
+				matricesWVP.mView.r[0] = matricesWVP.mView.r[0] + moveBackVector;
+				break;
+			}
 
 			default:
-				UpdateScene();
-				DrawScene(objectsPositions);
 				break;
 			}
 		}
-		break;
 
-	case(WM_PAINT):
+		UpdateScene();
+		DrawScene(objectsPositions);
+		break; 
+	}
+
+	case(WM_PAINT): {
 		// заполнение структуры ps, и очистка Update Region
 		hdc = BeginPaint(hWnd, &ps);
 
 		// очистка Update Region, и освобождение Device Context
 		EndPaint(hWnd, &ps);
 		break;
-
-	case(WM_DESTROY):
+	}
+	case(WM_DESTROY): {
 		//отправка сообщения WM_QUIT
 		PostQuitMessage(0);
 		break;
-
+	}
 	default:
 		return DefWindowProc(hWnd, message, wParam, lParam);
 	}
@@ -490,25 +510,28 @@ HRESULT MyCreateWindow(CONST WCHAR* wndClassNameParam, CONST WCHAR* wndNameParam
 		return E_FAIL;
 	}
 
-	// регистрация устройств клавиатуры и мыши
-	RAWINPUTDEVICE rid[2];
-	// клавиатура
-	rid[0].usUsagePage = HID_USAGE_PAGE_GENERIC;
-	rid[0].usUsage = HID_USAGE_GENERIC_KEYBOARD;
-	rid[0].dwFlags = RIDEV_NOLEGACY;
-	rid[0].usUsage = 0;
-	// мышь
-	rid[1].usUsagePage = HID_USAGE_PAGE_GENERIC;
-	rid[1].usUsage = HID_USAGE_GENERIC_MOUSE;
-	rid[1].dwFlags = RIDEV_NOLEGACY;
-	rid[1].usUsage = 0;
-	RegisterRawInputDevices(rid, 2, sizeof(rid[0]));
-
 	// Создание окна
 	g_hWnd = CreateWindowEx(NULL, wndClassNameParam, wndNameParam, WS_OVERLAPPEDWINDOW, 0, 0, widthParam, heightParam, NULL, NULL, hInstanceParam, NULL);
 	if (g_hWnd == 0) {
 		return E_FAIL;
 	}
+
+	// регистрация устройств клавиатуры и мыши
+	RAWINPUTDEVICE rid[1];
+	// клавиатура
+	rid[0].usUsagePage = HID_USAGE_PAGE_GENERIC;
+	rid[0].usUsage = HID_USAGE_GENERIC_KEYBOARD;
+	rid[0].dwFlags = RIDEV_NOLEGACY;
+	rid[0].hwndTarget = g_hWnd;
+	// мышь
+	/*
+	rid[1].usUsagePage = HID_USAGE_PAGE_GENERIC;
+	rid[1].usUsage = HID_USAGE_GENERIC_MOUSE;
+	rid[1].dwFlags = RIDEV_NOLEGACY;
+	rid[1].hwndTarget = g_hWnd;
+	*/
+	RegisterRawInputDevices(rid, 1, sizeof(rid[0]));
+
 	// Вывод окна на дисплей 
 	ShowWindow(g_hWnd, nShowCmdParam);
 
