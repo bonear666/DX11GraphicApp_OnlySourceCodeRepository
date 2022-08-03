@@ -84,8 +84,8 @@ XMVECTOR objectsPositions[] = { //массив точек, в которых располагаютс€ объекты
 	XMVectorSet(-2.5f, 0.5f, 5.0f, 0.0f)
 };
 XMMATRIX moveAheadMatrix = XMMatrixTranspose(XMMatrixTranslation(0.0f, 0.0f, 0.4f)); // матрица движени€ вперед
-XMVECTOR moveAheadVector = XMVectorSet(0.0f, 0.0f, 0.0f, -0.4f); // вектор движени€ в положительном направлении оси
-XMVECTOR moveBackVector = XMVectorSet(0.0f, 0.0f, 0.0f, 0.4f); // вектор движени€ в отрицательном направлении оси
+XMVECTOR moveAheadVector = XMVectorSet(0.0f, 0.0f, 0.0f, -0.1f); // вектор движени€ в положительном направлении оси
+XMVECTOR moveBackVector = XMVectorSet(0.0f, 0.0f, 0.0f, 0.1f); // вектор движени€ в отрицательном направлении оси
 
 //ѕ–≈ƒ¬ј–»“≈Ћ№Ќџ≈ ќЅЏя¬Ћ≈Ќ»я ‘”Ќ ÷»…
 
@@ -212,7 +212,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	matricesWVP.mView = XMMatrixTranspose(matricesWVP.mView); 
 
 	// инициализаци€ матрицы проекции
-	SetProjectionMatrix(&matricesWVP, XM_PI / 5.0f, XM_PI / 25.0f, 0.0001f, 6.5f, true);
+	SetProjectionMatrix(&matricesWVP, XM_PI / 5.0f, XM_PI / 25.0f, 0.0001f, 1.35f, true);
 	//SetProjectionMatrixWithCameraDistance(&matricesWVP, XM_PI / 5.0f, XM_PI / 25.0f, 0.5f, 2.2f, 0.0001f, true);
 
 	MSG msg;// структура, описывающа€ сообщение
@@ -277,8 +277,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 			}
 		}
 
-		UpdateScene();
-		DrawScene(objectsPositions);
+		//UpdateScene();
+		//DrawScene(objectsPositions);
 		break; 
 	}
 
@@ -289,7 +289,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 		// очистка Update Region, и освобождение Device Context
 		EndPaint(hWnd, &ps);
 		break;
-	}
+	} 
 	case(WM_DESTROY): {
 		//отправка сообщени€ WM_QUIT
 		PostQuitMessage(0);
@@ -299,6 +299,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 		return DefWindowProc(hWnd, message, wParam, lParam);
 	}
 
+	UpdateScene();
+	DrawScene(objectsPositions);
 	return 0;
 };
 
@@ -420,7 +422,7 @@ createDeviceDeviceContextSwapChainLoopExit:
 	depthStencilDesc.Height = heightParam;
 	depthStencilDesc.MipLevels = 1;
 	depthStencilDesc.ArraySize = 1;
-	depthStencilDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+	depthStencilDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT; //DXGI_FORMAT_D32_FLOAT_S8X24_UINT DXGI_FORMAT_D24_UNORM_S8_UINT DXGI_FORMAT_D16_UNORM
 	depthStencilDesc.SampleDesc.Count = 1;
 	depthStencilDesc.SampleDesc.Quality = 0;
 	depthStencilDesc.Usage = D3D11_USAGE_DEFAULT;
@@ -435,7 +437,7 @@ createDeviceDeviceContextSwapChainLoopExit:
 	dsDesc.DepthEnable = TRUE;
 	dsDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
 	dsDesc.DepthFunc = D3D11_COMPARISON_LESS;
-	dsDesc.StencilEnable = TRUE;
+	dsDesc.StencilEnable = FALSE;
 	dsDesc.StencilReadMask = 0xFF;
 	dsDesc.StencilWriteMask = 0xFF;
 	dsDesc.FrontFace = { D3D11_STENCIL_OP_KEEP , D3D11_STENCIL_OP_KEEP , D3D11_STENCIL_OP_KEEP , D3D11_COMPARISON_ALWAYS };
@@ -543,7 +545,7 @@ void UpdateScene() {
 	if (angleCBufferData.angle0 >= XM_2PI) {
 		angleCBufferData.angle0 = angleCBufferData.angle0 - XM_2PI;
 	}
-	angleCBufferData.angle0 += 0.0001f;
+	angleCBufferData.angle0 += 0.00007f;
 
 	/*
 	D3D11_MAPPED_SUBRESOURCE angleCBufferUpdateData;
@@ -560,7 +562,7 @@ void UpdateScene() {
 	//RotationAroundAxis(g_XMIdentityR1, g_XMZero, angleCBufferData.angle0, &matricesWVP.mRotationAroundAxis);
 	//matricesWVP.mRotationAroundAxis = XMMatrixTranspose(matricesWVP.mRotationAroundAxis);
 
-	matricesWVP.mRotationAroundAxis = XMMatrixTranspose(XMMatrixRotationAxis(g_XMIdentityR1, angleCBufferData.angle0));
+	matricesWVP.mRotationAroundAxis = XMMatrixTranspose(XMMatrixRotationAxis(g_XMIdentityR2, angleCBufferData.angle0));
 };
 
 void DrawScene(XMVECTOR* objectsPositionsArray) {
@@ -800,7 +802,9 @@ void SetProjectionMatrix(MatricesBuffer* pMatricesBuffer, FLOAT angleHoriz, FLOA
 	//FLOAT mulCoeff = (farZ - nearZ + 1.0f) / (farZ - nearZ);
 
 	FLOAT zCoeff = farZ / (farZ - nearZ);
-	FLOAT wCoeff = farZ - farZ * zCoeff;
+	//FLOAT wCoeff = farZ - farZ * zCoeff;
+	FLOAT wCoeff = -nearZ * zCoeff;
+
 
 	if (saveProportionsFlag == false) {
 		XMScalarSinCos(&sinAngle, &cosAngle, angleHoriz);
