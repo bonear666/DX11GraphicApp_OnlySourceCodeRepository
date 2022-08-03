@@ -3,6 +3,7 @@ cbuffer MatrixesConstantBuffer : register(b0)
     float4x4 world;
     float4x4 view;
     float4x4 projection;
+    float4x4 rotationAroundAxis;
 };
 
 cbuffer angleConstantBuffer : register(b1)
@@ -29,15 +30,9 @@ VS_OUTPUT main(float4 pos : POSITION, float4 color : COLOR)
     newPos.w = pos.w;
 
     newPos = mul(newPos, world);
+    //newPos = mul(newPos, rotationAroundAxis);
     newPos = mul(newPos, view);
-
-    //float coeff0 = 0.25f * 0.579f;
-    //float coeff = newPos.z * coeff0 + newPos.w;
-
     newPos = mul(newPos, projection);
-
-    //newPos.x = newPos.x * newPos.w / coeff;
-    //newPos.y = newPos.y * newPos.w / coeff;
 
     VS_OUTPUT output;
     output.outPos = newPos;
