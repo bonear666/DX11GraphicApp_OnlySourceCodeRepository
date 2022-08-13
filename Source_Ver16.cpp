@@ -212,8 +212,15 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	matricesWVP.mView = XMMatrixTranspose(matricesWVP.mView); 
 
 	// инициализация матрицы проекции
-	SetProjectionMatrix(&matricesWVP, XM_PI / 5.0f, XM_PI / 25.0f, 0.0001f, 1.35f, true);
+	SetProjectionMatrix(&matricesWVP, XM_PI / 5.0f, XM_PI / 25.0f, 0.001f, 7.35f, true);
 	//SetProjectionMatrixWithCameraDistance(&matricesWVP, XM_PI / 5.0f, XM_PI / 25.0f, 0.5f, 2.2f, 0.0001f, true);
+
+	matricesWVP.mRotationAroundAxis = {
+		g_XMIdentityR0,
+		g_XMIdentityR1,
+		g_XMIdentityR2,
+		g_XMIdentityR3,
+	};
 
 	MSG msg;// структура, описывающая сообщение
 	ZeroMemory(&msg, sizeof(MSG));
@@ -247,7 +254,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 
 		UINT resData = GetRawInputData((HRAWINPUT)lParam, RID_INPUT, lpRawInput, &dwSize, sizeof(RAWINPUTHEADER));
 		DWORD resData2 = ((RAWINPUT*)lpRawInput)->header.dwType;
-		if (resData2 == RIM_TYPEKEYBOARD) {
+		if (resData2 == RIM_TYPEKEYBOARD) { // если сообщение поступила от клавиатуры
 			USHORT pressedKey = ((RAWINPUT*)lpRawInput)->data.keyboard.VKey;
 
 			switch (pressedKey) {
@@ -276,9 +283,22 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 				break;
 			}
 		}
+		else // если сообщение поступило от мыши
+		{
+			LONG mouseX = ((RAWINPUT*)lpRawInput)->data.mouse.lLastX;
+			LONG mouseY = ((RAWINPUT*)lpRawInput)->data.mouse.lLastY;
 
-		//UpdateScene();
-		//DrawScene(objectsPositions);
+			XMMATRIX rotationAroundY = XMMatrixTranspose(XMMatrixRotationY(-XM_PI * 0.0005 * mouseX));
+			XMMATRIX rotationAroundX = XMMatrixRotationX(XM_PI * 0.0005 * mouseY);
+
+			//matricesWVP.mView *= rotationAroundX;
+			//matricesWVP.mView *= rotationAroundY;
+
+			matricesWVP.mRotationAroundAxis *= rotationAroundY;
+		}
+
+		UpdateScene();
+		DrawScene(objectsPositions);
 		break; 
 	}
 
@@ -299,8 +319,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 		return DefWindowProc(hWnd, message, wParam, lParam);
 	}
 
-	UpdateScene();
-	DrawScene(objectsPositions);
 	return 0;
 };
 
@@ -437,7 +455,7 @@ createDeviceDeviceContextSwapChainLoopExit:
 	dsDesc.DepthEnable = TRUE;
 	dsDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
 	dsDesc.DepthFunc = D3D11_COMPARISON_LESS;
-	dsDesc.StencilEnable = FALSE;
+	dsDesc.StencilEnable = TRUE;
 	dsDesc.StencilReadMask = 0xFF;
 	dsDesc.StencilWriteMask = 0xFF;
 	dsDesc.FrontFace = { D3D11_STENCIL_OP_KEEP , D3D11_STENCIL_OP_KEEP , D3D11_STENCIL_OP_KEEP , D3D11_COMPARISON_ALWAYS };
@@ -519,20 +537,18 @@ HRESULT MyCreateWindow(CONST WCHAR* wndClassNameParam, CONST WCHAR* wndNameParam
 	}
 
 	// регистрация устройств клавиатуры и мыши
-	RAWINPUTDEVICE rid[1];
+	RAWINPUTDEVICE rid[2];
 	// клавиатура
 	rid[0].usUsagePage = HID_USAGE_PAGE_GENERIC;
 	rid[0].usUsage = HID_USAGE_GENERIC_KEYBOARD;
 	rid[0].dwFlags = RIDEV_NOLEGACY;
 	rid[0].hwndTarget = g_hWnd;
 	// мышь
-	/*
 	rid[1].usUsagePage = HID_USAGE_PAGE_GENERIC;
 	rid[1].usUsage = HID_USAGE_GENERIC_MOUSE;
 	rid[1].dwFlags = RIDEV_NOLEGACY;
 	rid[1].hwndTarget = g_hWnd;
-	*/
-	RegisterRawInputDevices(rid, 1, sizeof(rid[0]));
+	RegisterRawInputDevices(rid, 2, sizeof(rid[0]));
 
 	// Вывод окна на дисплей 
 	ShowWindow(g_hWnd, nShowCmdParam);
@@ -562,7 +578,7 @@ void UpdateScene() {
 	//RotationAroundAxis(g_XMIdentityR1, g_XMZero, angleCBufferData.angle0, &matricesWVP.mRotationAroundAxis);
 	//matricesWVP.mRotationAroundAxis = XMMatrixTranspose(matricesWVP.mRotationAroundAxis);
 
-	matricesWVP.mRotationAroundAxis = XMMatrixTranspose(XMMatrixRotationAxis(g_XMIdentityR2, angleCBufferData.angle0));
+	//matricesWVP.mRotationAroundAxis = XMMatrixTranspose(XMMatrixRotationAxis(g_XMIdentityR1, angleCBufferData.angle0));
 };
 
 void DrawScene(XMVECTOR* objectsPositionsArray) {
