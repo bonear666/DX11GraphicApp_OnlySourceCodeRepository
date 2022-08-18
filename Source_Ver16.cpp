@@ -215,13 +215,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	SetProjectionMatrix(&matricesWVP, XM_PI / 5.0f, XM_PI / 25.0f, 0.001f, 7.35f, true);
 	//SetProjectionMatrixWithCameraDistance(&matricesWVP, XM_PI / 5.0f, XM_PI / 25.0f, 0.5f, 2.2f, 0.0001f, true);
 
-	matricesWVP.mRotationAroundAxis = {
-		g_XMIdentityR0,
-		g_XMIdentityR1,
-		g_XMIdentityR2,
-		g_XMIdentityR3,
-	};
-
 	MSG msg;// структура, описывающая сообщение
 	ZeroMemory(&msg, sizeof(MSG));
 
@@ -254,7 +247,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 
 		UINT resData = GetRawInputData((HRAWINPUT)lParam, RID_INPUT, lpRawInput, &dwSize, sizeof(RAWINPUTHEADER));
 		DWORD resData2 = ((RAWINPUT*)lpRawInput)->header.dwType;
-		if (resData2 == RIM_TYPEKEYBOARD) { // если сообщение поступила от клавиатуры
+		if (resData2 == RIM_TYPEKEYBOARD) { // если сообщение поступило от клавиатуры
 			USHORT pressedKey = ((RAWINPUT*)lpRawInput)->data.keyboard.VKey;
 
 			switch (pressedKey) {
@@ -288,13 +281,38 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 			LONG mouseX = ((RAWINPUT*)lpRawInput)->data.mouse.lLastX;
 			LONG mouseY = ((RAWINPUT*)lpRawInput)->data.mouse.lLastY;
 
-			XMMATRIX rotationAroundY = XMMatrixTranspose(XMMatrixRotationY(-XM_PI * 0.0005 * mouseX));
-			XMMATRIX rotationAroundX = XMMatrixRotationX(XM_PI * 0.0005 * mouseY);
+			XMMATRIX rotationAroundY = XMMatrixRotationY(-XM_PI * 0.0005 * mouseX);
+			XMMATRIX rotationAroundX = XMMatrixRotationX(-XM_PI * 0.0005 * mouseY);
 
-			//matricesWVP.mView *= rotationAroundX;
-			//matricesWVP.mView *= rotationAroundY;
+			//matricesWVP.mView = XMMatrixTranspose(rotationAroundX) * matricesWVP.mView;
+			//matricesWVP.mView = XMMatrixTranspose(rotationAroundY) * matricesWVP.mView;
+			//---
+			static XMVECTOR newXAxisRotation = g_XMIdentityR0;
+			static XMVECTOR newYAxisRotation = g_XMIdentityR1;
 
-			matricesWVP.mRotationAroundAxis *= rotationAroundY;
+			static XMMATRIX rotationNewY = {
+		g_XMIdentityR0,
+		g_XMIdentityR1,
+		g_XMIdentityR2,
+		g_XMIdentityR3,
+			};
+			static XMMATRIX rotationNewX = {
+		g_XMIdentityR0,
+		g_XMIdentityR1,
+		g_XMIdentityR2,
+		g_XMIdentityR3,
+			};
+
+			rotationNewX = XMMatrixRotationAxis(newXAxisRotation, -XM_PI * 0.0005 * mouseY);
+			newYAxisRotation = XMVector3Transform(newYAxisRotation, rotationNewX);
+
+			rotationNewY = XMMatrixRotationAxis(newYAxisRotation, -XM_PI * 0.0005 * mouseX);
+			//newXAxisRotation = XMVector3Transform(newXAxisRotation, rotationNewY);
+
+			matricesWVP.mView = XMMatrixTranspose(rotationNewX) * matricesWVP.mView;
+			matricesWVP.mView = XMMatrixTranspose(rotationNewY) * matricesWVP.mView;
+
+			//matricesWVP.mView = XMMatrixTranspose(XMMatrixRotationRollPitchYaw(-XM_PI * 0.0005 * mouseY, -XM_PI * 0.0005 * mouseX, 0.0f)) * matricesWVP.mView;
 		}
 
 		UpdateScene();
@@ -578,7 +596,7 @@ void UpdateScene() {
 	//RotationAroundAxis(g_XMIdentityR1, g_XMZero, angleCBufferData.angle0, &matricesWVP.mRotationAroundAxis);
 	//matricesWVP.mRotationAroundAxis = XMMatrixTranspose(matricesWVP.mRotationAroundAxis);
 
-	//matricesWVP.mRotationAroundAxis = XMMatrixTranspose(XMMatrixRotationAxis(g_XMIdentityR1, angleCBufferData.angle0));
+	matricesWVP.mRotationAroundAxis = XMMatrixTranspose(XMMatrixRotationAxis(g_XMIdentityR1, angleCBufferData.angle0));
 };
 
 void DrawScene(XMVECTOR* objectsPositionsArray) {
