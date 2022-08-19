@@ -287,32 +287,16 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 			//matricesWVP.mView = XMMatrixTranspose(rotationAroundX) * matricesWVP.mView;
 			//matricesWVP.mView = XMMatrixTranspose(rotationAroundY) * matricesWVP.mView;
 			//---
-			static XMVECTOR newXAxisRotation = g_XMIdentityR0;
 			static XMVECTOR newYAxisRotation = g_XMIdentityR1;
 
-			static XMMATRIX rotationNewY = {
-		g_XMIdentityR0,
-		g_XMIdentityR1,
-		g_XMIdentityR2,
-		g_XMIdentityR3,
-			};
-			static XMMATRIX rotationNewX = {
-		g_XMIdentityR0,
-		g_XMIdentityR1,
-		g_XMIdentityR2,
-		g_XMIdentityR3,
-			};
-
-			rotationNewX = XMMatrixRotationAxis(newXAxisRotation, -XM_PI * 0.0005 * mouseY);
+			XMMATRIX rotationNewX = XMMatrixRotationX(-XM_PI * 0.0005 * mouseY);
 			newYAxisRotation = XMVector3Transform(newYAxisRotation, rotationNewX);
 
-			rotationNewY = XMMatrixRotationAxis(newYAxisRotation, -XM_PI * 0.0005 * mouseX);
-			//newXAxisRotation = XMVector3Transform(newXAxisRotation, rotationNewY);
+			XMMATRIX rotationNewY = XMMatrixRotationNormal(newYAxisRotation, -XM_PI * 0.0005 * mouseX);
 
 			matricesWVP.mView = XMMatrixTranspose(rotationNewX) * matricesWVP.mView;
 			matricesWVP.mView = XMMatrixTranspose(rotationNewY) * matricesWVP.mView;
-
-			//matricesWVP.mView = XMMatrixTranspose(XMMatrixRotationRollPitchYaw(-XM_PI * 0.0005 * mouseY, -XM_PI * 0.0005 * mouseX, 0.0f)) * matricesWVP.mView;
+			//matricesWVP.mView = XMMatrixTranspose(rotationNewY * rotationNewX) * matricesWVP.mView;
 		}
 
 		UpdateScene();
