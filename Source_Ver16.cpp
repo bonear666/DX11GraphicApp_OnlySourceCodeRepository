@@ -87,6 +87,7 @@ XMMATRIX moveAheadMatrix = XMMatrixTranspose(XMMatrixTranslation(0.0f, 0.0f, 0.4
 XMVECTOR moveAheadVector = XMVectorSet(0.0f, 0.0f, 0.0f, -0.1f); // вектор движени€ в положительном направлении оси
 XMVECTOR moveBackVector = XMVectorSet(0.0f, 0.0f, 0.0f, 0.1f); // вектор движени€ в отрицательном направлении оси
 
+
 //ѕ–≈ƒ¬ј–»“≈Ћ№Ќџ≈ ќЅЏя¬Ћ≈Ќ»я ‘”Ќ ÷»…
 
 // ‘ункци€ окна
@@ -208,7 +209,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 	//NewCoordinateSystemMatrix(eye, zAxis, yAxis, &matricesWVP.mView);
 	matricesWVP.mView = XMMatrixLookToLH(eye, zAxis, yAxis);
-	matricesWVP.mView.r[3] = _mm_mul_ps(eye, XMVectorSet(-1.0f, -1.0f, -1.0f, 1.0f)); // приходитс€ замен€ть последнюю строку в матрице вида, так как XMMatrixLookToLH как-то странно считает значение последней строки
+	//matricesWVP.mView.r[3] = _mm_mul_ps(eye, XMVectorSet(-1.0f, -1.0f, -1.0f, 1.0f)); // приходитс€ замен€ть последнюю строку в матрице вида, так как XMMatrixLookToLH как-то странно считает значение последней строки
 	matricesWVP.mView = XMMatrixTranspose(matricesWVP.mView); 
 
 	// инициализаци€ матрицы проекции
@@ -284,19 +285,32 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 			XMMATRIX rotationAroundY = XMMatrixRotationY(-XM_PI * 0.0005 * mouseX);
 			XMMATRIX rotationAroundX = XMMatrixRotationX(-XM_PI * 0.0005 * mouseY);
 
-			//matricesWVP.mView = XMMatrixTranspose(rotationAroundX) * matricesWVP.mView;
-			//matricesWVP.mView = XMMatrixTranspose(rotationAroundY) * matricesWVP.mView;
-			//---
+			//--- 
+			/*
 			static XMVECTOR newYAxisRotation = g_XMIdentityR1;
 
-			XMMATRIX rotationNewX = XMMatrixRotationX(-XM_PI * 0.0005 * mouseY);
-			newYAxisRotation = XMVector3Transform(newYAxisRotation, rotationNewX);
+			XMMATRIX matrixRotationNewX = XMMatrixRotationX(-XM_PI * 0.0005 * mouseY);
+			XMMATRIX matrixRotationNewY = XMMatrixRotationNormal(newYAxisRotation, -XM_PI * 0.0005 * mouseX);
+			newYAxisRotation = XMVector3Transform(newYAxisRotation, matrixRotationNewX);
 
-			XMMATRIX rotationNewY = XMMatrixRotationNormal(newYAxisRotation, -XM_PI * 0.0005 * mouseX);
+			matricesWVP.mView = XMMatrixTranspose(matrixRotationNewY * matrixRotationNewX) * matricesWVP.mView;
+			*/
+			//---
+			static XMVECTOR newXAxisRotation = g_XMIdentityR0;
+			static XMVECTOR cameraZCoordinateInWorldSpace = XMVectorSet(0.0f, 0.0f, 1.0f, 1.0f);
+			static XMVECTOR cameraYCoordinateInWorldSpace = XMVectorSet(0.0f, 1.0f, 0.0f, 1.0f);
+			static XMVECTOR cameraPositionInWorldSpace = XMVectorSet(0.0f, 0.3f, -3.0f, 1.0f);
 
-			matricesWVP.mView = XMMatrixTranspose(rotationNewX) * matricesWVP.mView;
-			matricesWVP.mView = XMMatrixTranspose(rotationNewY) * matricesWVP.mView;
-			//matricesWVP.mView = XMMatrixTranspose(rotationNewY * rotationNewX) * matricesWVP.mView;
+			XMMATRIX matrixRotationNewY = XMMatrixRotationY(XM_PI * 0.0005 * mouseX);
+			XMMATRIX matrixRotationNewX = XMMatrixRotationNormal(newXAxisRotation, XM_PI * 0.0005 * mouseY);
+			newXAxisRotation = XMVector3Transform(newXAxisRotation, matrixRotationNewY);
+
+			XMMATRIX transformMatrix = matrixRotationNewX * matrixRotationNewY;
+			cameraZCoordinateInWorldSpace = XMVector3Transform(cameraZCoordinateInWorldSpace, transformMatrix);
+			cameraYCoordinateInWorldSpace = XMVector3Transform(cameraYCoordinateInWorldSpace, transformMatrix);
+
+			matricesWVP.mView = XMMatrixLookToLH(cameraPositionInWorldSpace, cameraZCoordinateInWorldSpace, cameraYCoordinateInWorldSpace);
+			matricesWVP.mView = XMMatrixTranspose(matricesWVP.mView);
 		}
 
 		UpdateScene();
