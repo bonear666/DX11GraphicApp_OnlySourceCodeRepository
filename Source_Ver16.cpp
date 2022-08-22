@@ -84,8 +84,10 @@ XMVECTOR objectsPositions[] = { //массив точек, в которых располагаютс€ объекты
 	XMVectorSet(-2.5f, 0.5f, 5.0f, 0.0f)
 };
 XMMATRIX moveAheadMatrix = XMMatrixTranspose(XMMatrixTranslation(0.0f, 0.0f, 0.4f)); // матрица движени€ вперед
-XMVECTOR moveAheadVector = XMVectorSet(0.0f, 0.0f, 0.0f, -0.1f); // вектор движени€ в положительном направлении оси
-XMVECTOR moveBackVector = XMVectorSet(0.0f, 0.0f, 0.0f, 0.1f); // вектор движени€ в отрицательном направлении оси
+XMVECTOR moveAheadVector = XMVectorSet(0.0f, 0.0f, -0.01f, 0.0f); // вектор движени€ в положительном направлении оси
+XMVECTOR moveBackVector = XMVectorSet(0.0f, 0.0f, 0.01f, 0.0f); // вектор движени€ в отрицательном направлении оси
+XMVECTOR moveRightVector = XMVectorSet(0.0f, 0.0f, 0.0f, -0.1f);
+XMVECTOR moveLeftVector = XMVectorSet(0.0f, 0.0f, 0.0f, 0.1f);
 
 
 //ѕ–≈ƒ¬ј–»“≈Ћ№Ќџ≈ ќЅЏя¬Ћ≈Ќ»я ‘”Ќ ÷»…
@@ -195,9 +197,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	}
 
 	// инициализаци€ матриц
-	//MatricesBuffer matricesWVP;
-	//ZeroMemory(&matricesWVP, sizeof(MatricesBuffer));
-
 	float vecAngle = -XM_PIDIV4;
 	XMVECTOR eye = XMVectorSet(0.0f, 0.3f, -3.0f, 1.0f); // откуда смотрим
 	// Ћучше использовать XMScalarSinExt, XMScalarCosExt вместо XMScalarSin, XMScalarCos, чтобы получать хорошое округление чисел
@@ -253,23 +252,24 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 
 			switch (pressedKey) {
 			case(0x57): {// W
-				//matricesWVP.mView = matricesWVP.mView * moveAheadMatrix;
-				matricesWVP.mView.r[2] = matricesWVP.mView.r[2] + moveAheadVector;
+				matricesWVP.mView *= XMMatrixTranslationFromVector(moveAheadVector);
+				//matricesWVP.mView.r[2] = matricesWVP.mView.r[2] + moveAheadVector;
 				break;
 			}
 			
 			case(0x53): { // S
-				matricesWVP.mView.r[2] = matricesWVP.mView.r[2] + moveBackVector;
+				matricesWVP.mView *= XMMatrixTranslationFromVector(moveBackVector);
+				//matricesWVP.mView.r[2] = matricesWVP.mView.r[2] + moveBackVector;
 				break;
 			}
 
 			case(0x44): { // D
-				matricesWVP.mView.r[0] = matricesWVP.mView.r[0] + moveAheadVector;
+				matricesWVP.mView.r[0] = matricesWVP.mView.r[0] + moveRightVector;
 				break;
 			}
 
 			case(0x41): { // A
-				matricesWVP.mView.r[0] = matricesWVP.mView.r[0] + moveBackVector;
+				matricesWVP.mView.r[0] = matricesWVP.mView.r[0] + moveLeftVector;
 				break;
 			}
 
@@ -281,21 +281,18 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 		{
 			LONG mouseX = ((RAWINPUT*)lpRawInput)->data.mouse.lLastX;
 			LONG mouseY = ((RAWINPUT*)lpRawInput)->data.mouse.lLastY;
-
-			XMMATRIX rotationAroundY = XMMatrixRotationY(-XM_PI * 0.0005 * mouseX);
-			XMMATRIX rotationAroundX = XMMatrixRotationX(-XM_PI * 0.0005 * mouseY);
-
-			//--- 
-			/*
 			static XMVECTOR newYAxisRotation = g_XMIdentityR1;
 
-			XMMATRIX matrixRotationNewX = XMMatrixRotationX(-XM_PI * 0.0005 * mouseY);
-			XMMATRIX matrixRotationNewY = XMMatrixRotationNormal(newYAxisRotation, -XM_PI * 0.0005 * mouseX);
-			newYAxisRotation = XMVector3Transform(newYAxisRotation, matrixRotationNewX);
+			XMMATRIX matrixRotationNewX = XMMatrixRotationX(-XM_PI * 0.0005 * mouseY); //матрица поворота вокруг оси X
+			XMMATRIX matrixRotationNewY = XMMatrixRotationNormal(newYAxisRotation, -XM_PI * 0.0005 * mouseX); //матрица поворота вокруг оси Y
+			newYAxisRotation = XMVector3Transform(newYAxisRotation, matrixRotationNewX); //статическа€ ось Y, вокруг которой происходит поворот
+			moveAheadVector = XMVector3Transform(moveAheadVector, matrixRotationNewX);
+			moveBackVector = (-1.0f) * moveAheadVector;
 
 			matricesWVP.mView = XMMatrixTranspose(matrixRotationNewY * matrixRotationNewX) * matricesWVP.mView;
-			*/
-			//---
+
+			//то же самое, только реализовано через построение новой матрицы вида
+			/*
 			static XMVECTOR newXAxisRotation = g_XMIdentityR0;
 			static XMVECTOR cameraZCoordinateInWorldSpace = XMVectorSet(0.0f, 0.0f, 1.0f, 1.0f);
 			static XMVECTOR cameraYCoordinateInWorldSpace = XMVectorSet(0.0f, 1.0f, 0.0f, 1.0f);
@@ -311,6 +308,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 
 			matricesWVP.mView = XMMatrixLookToLH(cameraPositionInWorldSpace, cameraZCoordinateInWorldSpace, cameraYCoordinateInWorldSpace);
 			matricesWVP.mView = XMMatrixTranspose(matricesWVP.mView);
+			*/
 		}
 
 		UpdateScene();
@@ -1033,8 +1031,8 @@ HRESULT NewCoordinateSystemMatrix(XMVECTOR point, XMVECTOR zAxis, XMVECTOR yAxis
 		return E_FAIL;
 	}
 	// при умножении вершины на матрицу перехода к новой системе координат вычитаем начало координат новой системы координат
-	point *= -1.0f;
-	invertibleMatrix->r[3] = XMVectorSetByIndex(point, 1.0f, 3);
+	point *= XMVectorSet(-1.0f, -1.0f, -1.0f, 1.0f);
+	*invertibleMatrix = XMMatrixTranslationFromVector(point) * (*invertibleMatrix);
 
 	return S_OK;
 };
