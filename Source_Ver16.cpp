@@ -84,8 +84,8 @@ XMVECTOR objectsPositions[] = { //массив точек, в которых располагаются объекты
 	XMVectorSet(-2.5f, 0.5f, 5.0f, 0.0f)
 };
 XMMATRIX moveAheadMatrix = XMMatrixTranspose(XMMatrixTranslation(0.0f, 0.0f, 0.4f)); // матрица движения вперед
-XMVECTOR moveAheadVector = XMVectorSet(0.0f, 0.0f, -0.01f, 0.0f); // вектор движения в положительном направлении оси
-XMVECTOR moveBackVector = XMVectorSet(0.0f, 0.0f, 0.01f, 0.0f); // вектор движения в отрицательном направлении оси
+XMVECTOR moveAheadVector = XMVectorSet(0.0f, 0.0f, -0.1f, 0.0f); // вектор движения в положительном направлении оси
+XMVECTOR moveBackVector = XMVectorSet(0.0f, 0.0f, 0.1f, 0.0f); // вектор движения в отрицательном направлении оси
 XMVECTOR moveRightVector = XMVectorSet(0.0f, 0.0f, 0.0f, -0.1f);
 XMVECTOR moveLeftVector = XMVectorSet(0.0f, 0.0f, 0.0f, 0.1f);
 
@@ -252,13 +252,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 
 			switch (pressedKey) {
 			case(0x57): {// W
-				matricesWVP.mView *= XMMatrixTranslationFromVector(moveAheadVector);
+				matricesWVP.mView = XMMatrixTranspose(XMMatrixTranslationFromVector(moveAheadVector)) * matricesWVP.mView;
 				//matricesWVP.mView.r[2] = matricesWVP.mView.r[2] + moveAheadVector;
 				break;
 			}
 			
 			case(0x53): { // S
-				matricesWVP.mView *= XMMatrixTranslationFromVector(moveBackVector);
+				matricesWVP.mView = XMMatrixTranspose(XMMatrixTranslationFromVector(moveBackVector)) * matricesWVP.mView;
 				//matricesWVP.mView.r[2] = matricesWVP.mView.r[2] + moveBackVector;
 				break;
 			}
