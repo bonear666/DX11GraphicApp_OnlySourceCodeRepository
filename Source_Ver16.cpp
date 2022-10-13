@@ -51,6 +51,25 @@ struct Camera {
 	XMVECTOR y;
 };
 
+// структура хитбокса
+struct HitBox {
+	double center;
+	double width;
+	double height;
+	double angle;
+};
+
+// структура зоны неподвижных хитбоксок
+struct HitBoxArea {
+	HitBoxArea* leftNode; //левый узел в бинарном дереве
+	HitBoxArea* rightNode; //правый узел в бинарном дереве
+	HitBoxArea* parentNode; //родительский узел в бинарном дереве
+	double center; //центр зоны
+	double width;
+	double height;
+	HitBox** staticHitBoxesArray; //указатель на динмический массив, в которм наход€тс€ указатели на хитбоксы, которые наход€тс€ в данной зоне
+};
+
 // √ЋќЅјЋ№Ќџ≈ ѕ≈–≈ћ≈ЌЌџ≈
 
 HINSTANCE               g_hInst = NULL; //указатель на struct, дескриптор(handle) данного приложени€.
@@ -88,6 +107,7 @@ XMVECTOR moveAheadVector = XMVectorSet(0.0f, 0.0f, -0.1f, 0.0f); // вектор движе
 XMVECTOR moveBackVector = XMVectorSet(0.0f, 0.0f, 0.1f, 0.0f); // вектор движени€ в отрицательном направлении оси
 XMVECTOR moveRightVector = XMVectorSet(0.0f, 0.0f, 0.0f, -0.1f);
 XMVECTOR moveLeftVector = XMVectorSet(0.0f, 0.0f, 0.0f, 0.1f);
+HitBoxArea* currentHitBoxArea; // указатель на hitboxarea, в которой находитс€ камера в данный момент
 
 
 //ѕ–≈ƒ¬ј–»“≈Ћ№Ќџ≈ ќЅЏя¬Ћ≈Ќ»я ‘”Ќ ÷»…
@@ -214,6 +234,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	// инициализаци€ матрицы проекции
 	SetProjectionMatrix(&matricesWVP, XM_PI / 5.0f, XM_PI / 25.0f, 0.001f, 7.35f, true);
 	//SetProjectionMatrixWithCameraDistance(&matricesWVP, XM_PI / 5.0f, XM_PI / 25.0f, 0.5f, 2.2f, 0.0001f, true);
+
+	// инициализаци€ массива неподвижных хитбоксов
+
 
 	MSG msg;// структура, описывающа€ сообщение
 	ZeroMemory(&msg, sizeof(MSG));
