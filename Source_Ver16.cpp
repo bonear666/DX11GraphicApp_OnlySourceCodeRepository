@@ -53,21 +53,28 @@ struct Camera {
 
 // структура хитбокса
 struct HitBox {
-	double center;
-	double width;
-	double height;
-	double angle;
+	float centerX;
+	float centerZ;
+	float width;
+	float height;
+	float angle;
 };
 
-// структура зоны неподвижных хитбоксок
+// структура области неподвижных хитбоксок
 struct HitBoxArea {
 	HitBoxArea* leftNode; //левый узел в бинарном дереве
-	HitBoxArea* rightNode; //правый узел в бинарном дереве
+	// у каждого узла, который не является листком, всегда есть два узла-потомка
+	// у листка нет потомков, значит можно ввести такое объединение:
+	union {
+		HitBoxArea* rightNode; //правый узел в бинарном дереве
+		HitBox** staticHitBoxesArray; //указатель на динмический массив, в которм находятся указатели на хитбоксы, которые находятся в данной зоне
+	};
 	HitBoxArea* parentNode; //родительский узел в бинарном дереве
-	double center; //центр зоны
-	double width;
-	double height;
-	HitBox** staticHitBoxesArray; //указатель на динмический массив, в которм находятся указатели на хитбоксы, которые находятся в данной зоне
+	float centerX; //центр области
+	float centerZ;
+	float width;
+	float height;
+	bool nodeSideFlag; // 0 если узел является левым узлом parentNode, 1 если узел является правым узлом parentNode
 };
 
 // ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ
@@ -97,10 +104,10 @@ ID3D11DepthStencilView* g_pDepthStencilView = NULL; // ресурсы depth буфера
 ID3D11DepthStencilState* pDSState = NULL; // состояние depth-stencil теста
 ID3D11RasterizerState* pRasterizerState = NULL; // состояние растеризатора 
 MatricesBuffer matricesWVP; // матрицы
-XMVECTOR objectsPositions[] = { //массив точек, в которых располагаются объекты
-	XMVectorSet(0.0f, 0.0f, -0.4f, 0.0f),
-	XMVectorSet(0.0f, 1.25f, 10.0f, 0.0f),
-	XMVectorSet(-2.5f, 0.5f, 5.0f, 0.0f)
+XMVECTOR objectsPositions[] = { //массив точек, в которых располагаются объекты. Координаты точек должны быть деленными на W координату
+	XMVectorSet(-0.75f, 0.0f, 0.50f, 0.0f),
+	XMVectorSet(0.75f, 0.0125f, 0.75f, 0.0f),
+	XMVectorSet(0.75f, 0.005f, 0.25f, 0.0f)
 };
 XMMATRIX moveAheadMatrix = XMMatrixTranspose(XMMatrixTranslation(0.0f, 0.0f, 0.4f)); // матрица движения вперед
 XMVECTOR moveAheadVector = XMVectorSet(0.0f, 0.0f, -0.1f, 0.0f); // вектор движения в положительном направлении оси
@@ -108,6 +115,8 @@ XMVECTOR moveBackVector = XMVectorSet(0.0f, 0.0f, 0.1f, 0.0f); // вектор движени
 XMVECTOR moveRightVector = XMVectorSet(0.0f, 0.0f, 0.0f, -0.1f);
 XMVECTOR moveLeftVector = XMVectorSet(0.0f, 0.0f, 0.0f, 0.1f);
 HitBoxArea* currentHitBoxArea; // указатель на hitboxarea, в которой находится камера в данный момент
+DWORD pageSize; // размер страницы виртуальной памяти
+DWORD allocationGranularity; // выравнивание адресов в виртуальной памяти
 
 
 //ПРЕДВАРИТЕЛЬНЫЕ ОБЪЯВЛЕНИЯ ФУНКЦИЙ
@@ -163,6 +172,7 @@ void RotationAroundAxis(XMVECTOR yAxis, XMVECTOR point, FLOAT angle, XMMATRIX* o
 // nearZ, farZ координаты плоскости отсечений, деленные на W
 // cameraDistance не должен быть равен нулю, так как исходя из формулы, Z координата вершины после умножения на матрицу проекции будет всегда равна 1
 void SetProjectionMatrixWithCameraDistance(MatricesBuffer* pMatricesBuffer, FLOAT angleHoriz, FLOAT angleVert, FLOAT nearZ, FLOAT farZ, FLOAT cameraDistance, BOOL saveProportionsFlag);
+void InitPageSizeAndAllocGranularityVariables(); // инициализация глобальных статических переменных с размером страницы виртуальной памяти, и переменной с гранулярностью памяти
 
 // Главная функция, точка входа
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd) {
@@ -183,10 +193,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 	// массив вершин (пирамида)
 	Vertex* vertexArray = new Vertex[4]{
-		Vertex{XMFLOAT4{0.0f, 5.0f, -2.5f, 7.0f}, XMFLOAT4{1.0f, 0.0f, 0.0f, 1.0f}}, // a 0
-		Vertex{XMFLOAT4{2.5f, 0.0f, -2.5f, 7.0f}, XMFLOAT4{1.0f, 1.0f, 0.0f, 1.0f}}, //b 1
-		Vertex{XMFLOAT4{0.0f, 0.0f, 2.5f, 7.0f}, XMFLOAT4{0.0f, 0.0f, 0.0f, 1.0f}}, //c 2
-		Vertex{XMFLOAT4{-2.5f, 0.0f, -2.5f, 7.0f}, XMFLOAT4{1.0f, 0.0f, 1.0f, 1.0f}} //d 3
+		Vertex{XMFLOAT4{0.0f, 6.0f, -2.5f, 100.0f}, XMFLOAT4{1.0f, 0.0f, 0.0f, 1.0f}}, // a 0
+		Vertex{XMFLOAT4{2.5f, 0.0f, -2.5f, 100.0f}, XMFLOAT4{1.0f, 1.0f, 0.0f, 1.0f}}, //b 1
+		Vertex{XMFLOAT4{0.0f, 0.0f, 2.5f, 100.0f}, XMFLOAT4{0.0f, 0.0f, 0.0f, 1.0f}}, //c 2
+		Vertex{XMFLOAT4{-2.5f, 0.0f, -2.5f, 100.0f}, XMFLOAT4{1.0f, 0.0f, 1.0f, 1.0f}} //d 3
 	};
 
 	// создание буфера вершин, компиляция шейдеров, связывание шейдеров и буфера вершин с конвейером
@@ -218,13 +228,13 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 	// инициализация матриц
 	float vecAngle = -XM_PIDIV4;
-	XMVECTOR eye = XMVectorSet(0.0f, 0.3f, -3.0f, 1.0f); // откуда смотрим
+	XMVECTOR eye = XMVectorSet(0.0f, 0.0f, 0.0f, 100.0f); // откуда смотрим
 	// Лучше использовать XMScalarSinExt, XMScalarCosExt вместо XMScalarSin, XMScalarCos, чтобы получать хорошое округление чисел
 	//XMVECTOR zAxis = XMVectorSet(0.0f, XMScalarSinEst(vecAngle), XMScalarCosEst(vecAngle), 1.0f); // куда смотрим. 
 	//XMVECTOR yAxis = XMVectorSet(0.0f, XMScalarCosEst(XM_PIDIV4), XMScalarSinEst(XM_PIDIV4), 1.0f); // нормаль к тому, куда смотрим
 
-	XMVECTOR zAxis = XMVectorSet(0.0f, 0.0f, 1.0f, 1.0f); // куда смотрим. 
-	XMVECTOR yAxis = XMVectorSet(0.0f, 1.0f, 0.0f, 1.0f); // нормаль к тому, куда смотрим
+	XMVECTOR zAxis = XMVectorSet(0.0f, 0.0f, 1.0f, 100.0f); // куда смотрим. 
+	XMVECTOR yAxis = XMVectorSet(0.0f, 1.0f, 0.0f, 100.0f); // нормаль к тому, куда смотрим
 
 	//NewCoordinateSystemMatrix(eye, zAxis, yAxis, &matricesWVP.mView);
 	matricesWVP.mView = XMMatrixLookToLH(eye, zAxis, yAxis);
@@ -236,7 +246,41 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	//SetProjectionMatrixWithCameraDistance(&matricesWVP, XM_PI / 5.0f, XM_PI / 25.0f, 0.5f, 2.2f, 0.0001f, true);
 
 	// инициализация массива неподвижных хитбоксов
+	InitPageSizeAndAllocGranularityVariables();
+	LPVOID dynamicMemory = VirtualAlloc(NULL, pageSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 
+	//1 статический хитбокс
+	*((HitBox*)dynamicMemory) = {
+		0.0f,
+		55.0f,
+		100.0f, 
+		5.0f,
+		0.0f
+	};
+	//2 статический хитбокс
+	*((HitBox*)dynamicMemory + 1) = {
+		55.0f,
+		0.0f,
+		5.0f,
+		100.0f,
+		0.0f
+	};
+	//3 статический хитбокс
+	*((HitBox*)dynamicMemory + 2) = {
+		0.0f,
+		-55.0f,
+		100.0f,
+		5.0f,
+		0.0f
+	};
+	//4 статический хитбокс
+	*((HitBox*)dynamicMemory + 3) = {
+		-55.0f,
+		0.0f,
+		5.0f,
+		100.0f,
+		0.0f
+	};
 
 	MSG msg;// структура, описывающая сообщение
 	ZeroMemory(&msg, sizeof(MSG));
@@ -1169,6 +1213,14 @@ void RotationAroundAxis(XMVECTOR yAxis, XMVECTOR point, FLOAT angle, XMMATRIX* o
 	// можно перемножить все матрицы, так как перемножение матриц ассоциативно, и получить одну матрицу. Не придется в шейдере на каждую вершину делать несколько перемножений матриц. 
 	*outputMatrix = offsetMatrix * newCoordinates * yAxisRotationMatrix * transformationMatrix * backOffsetMatrix; 
 }
+
+void InitPageSizeAndAllocGranularityVariables() {
+	SYSTEM_INFO systemInfo;
+	GetNativeSystemInfo(&systemInfo);
+	pageSize = systemInfo.dwPageSize;
+	allocationGranularity = systemInfo.dwAllocationGranularity;
+}
+
 
 void ReleaseObjects() {
 	if (pIndexBuffer != NULL) {
