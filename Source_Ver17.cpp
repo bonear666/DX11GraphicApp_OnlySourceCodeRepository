@@ -15,12 +15,17 @@
 #include <cmath>
 #include <hidusage.h>
 
-#define HIT_BOX_WIDTH_AND_HEIGHT_STRUCT_AMOUNT 20
-#define HIT_BOX_CENTER_STRUCT_AMOUNT 20
-#define HIT_BOX_ANGLE_STRUCT_AMOUNT 20
-
-typedef XMFLOAT2 HitBoxWidthAndHeight, HitBoxCenter;
-typedef FLOAT HitBoxAngle;
+// начальные количества структур 
+#define HIT_BOX_WIDTH_AND_HEIGHT_AMOUNT 20
+#define HIT_BOX_CENTER_AMOUNT 20
+#define HIT_BOX_ANGLE_AMOUNT 20
+#define STATIC_HIT_BOX_DESC_AMOUNT 20
+#define STATIC_HIT_BOX_AREA_AMOUNT 6
+#define STATIC_HIT_BOX_AREA_LEAF_AMOUNT 4
+#define STATIC_HIT_BOX_AMOUNT_IN_STATIC_HIT_BOX_AREA_LEAF_1 2
+#define STATIC_HIT_BOX_AMOUNT_IN_STATIC_HIT_BOX_AREA_LEAF_2 2
+#define STATIC_HIT_BOX_AMOUNT_IN_STATIC_HIT_BOX_AREA_LEAF_3 2
+#define STATIC_HIT_BOX_AMOUNT_IN_STATIC_HIT_BOX_AREA_LEAF_4 2
 
 // ОПИСАНИЕ СТРУКТУР
 
@@ -52,10 +57,18 @@ struct AngleConstantBuffer {
 	float angle3;
 };
 
-// структура камеры
-struct Camera {
-	XMVECTOR z;
-	XMVECTOR y;
+// Ширина и высота хитбокса
+typedef XMFLOAT2 HitBoxWidthAndHeight;
+// угол хитбокса
+typedef FLOAT HitBoxAngle;
+// смещения в массиве
+typedef unsigned __int8 ArrayOffset8Bit;
+typedef unsigned __int16 ArrayOffset16Bit;
+
+// структура центра =итбокса
+struct HitBoxCenter {
+	float x;
+	float z;
 };
 
 // структура хитбокса
@@ -67,22 +80,23 @@ struct HitBox {
 	float angle;
 };
 
-struct HitBox2 {
-	unsigned __int8 widthAndHeightArrayPos; // позиция в массиве структур, которые описывают ширину и высоту хитбокса
-	unsigned __int8 centerArrayPos; // позиция в массиве структур, которые описывают центр хитбокса
-	unsigned __int16 angleArrayPos; // позиция в массиве структур, которые описывают угол хитбокса
-}
+// структура описания хитбокса
+struct HitBoxDesc {
+	ArrayOffset8Bit widthAndHeightArrayPos; // позиция в массиве структур, которые описывают ширину и высоту хитбокса
+	ArrayOffset8Bit centerArrayPos; // позиция в массиве структур, которые описывают центр хитбокса
+	ArrayOffset16Bit angleArrayPos; // позиция в массиве структур, которые описывают угол хитбокса
+};
 
 // структура области неподвижных хитбоксок
-struct HitBoxArea {
-	HitBoxArea* leftNode; //левый узел в бинарном дереве
+struct StaticHitBoxArea {
+	StaticHitBoxArea* leftNode; //левый узел в бинарном дереве
 	// у каждого узла, который не является листком, всегда есть два узла-потомка
 	// у листка нет потомков, значит можно ввести такое объединение:
 	union {
-		HitBoxArea* rightNode; //правый узел в бинарном дереве
+		StaticHitBoxArea* rightNode; //правый узел в бинарном дереве
 		HitBox** staticHitBoxesArray; //указатель на динмический массив, в которм находятся указатели на хитбоксы, которые находятся в данной зоне
 	};
-	HitBoxArea* parentNode; //родительский узел в бинарном дереве
+	StaticHitBoxArea* parentNode; //родительский узел в бинарном дереве
 	float centerX; //центр области
 	float centerZ;
 	float width;
@@ -127,7 +141,7 @@ XMVECTOR moveAheadVector = XMVectorSet(0.0f, 0.0f, -0.1f, 0.0f); // вектор движе
 XMVECTOR moveBackVector = XMVectorSet(0.0f, 0.0f, 0.1f, 0.0f); // вектор движения в отрицательном направлении оси
 XMVECTOR moveRightVector = XMVectorSet(0.0f, 0.0f, 0.0f, -0.1f);
 XMVECTOR moveLeftVector = XMVectorSet(0.0f, 0.0f, 0.0f, 0.1f);
-HitBoxArea* currentHitBoxArea; // указатель на hitboxarea, в которой находится камера в данный момент
+StaticHitBoxArea* currentHitBoxArea; // указатель на hitboxarea, в которой находится камера в данный момент
 DWORD pageSize; // размер страницы виртуальной памяти
 DWORD allocationGranularity; // выравнивание адресов в виртуальной памяти
 
@@ -170,8 +184,6 @@ HRESULT NewCoordinateSystemMatrix(XMVECTOR point, XMVECTOR zAxis, XMVECTOR yAxis
 void SetWorldMatrix(XMVECTOR point, XMVECTOR scale, XMMATRIX* worldMatrix);
 // изменение порядка обхода вершин
 void InvertIndices(WORD* indicesArray, int size);
-// поворот камеры
-Camera CameraRotation();
 // поиск ортогонального вектора к заданному
 XMVECTOR FindOrthogonalVector(XMVECTOR vector);
 // поиск ортгонального нормализованного вектора к заданному
@@ -265,7 +277,15 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	// тогда кол-во страниц, необходимое для того чтобы вместить все хитбоксы, можно вычислить так:
 	
 	// размер памяти, занимаемы хитбоксами
-	SIZE_T hitBoxAmount = sizeof(HIT_BOX_WIDTH_AND_HEIGHT_STRUCT_AMOUNT * (sizeof(HitBoxWidthAndHeight) + sizeof(HitBoxCenter) + sizeof(HitBoxAngle)));
+	SIZE_T hitBoxAmount = sizeof(HIT_BOX_WIDTH_AND_HEIGHT_AMOUNT * sizeof(HitBoxWidthAndHeight) + 
+		HIT_BOX_CENTER_AMOUNT * sizeof(HitBoxCenter) + 
+		HIT_BOX_ANGLE_AMOUNT * sizeof(HitBoxAngle) + 
+		STATIC_HIT_BOX_DESC_AMOUNT * sizeof(HitBoxDesc) + 
+		STATIC_HIT_BOX_AREA_AMOUNT * sizeof(StaticHitBoxArea) +
+		STATIC_HIT_BOX_AMOUNT_IN_STATIC_HIT_BOX_AREA_LEAF_1 * sizeof(ArrayOffset8Bit) +
+		STATIC_HIT_BOX_AMOUNT_IN_STATIC_HIT_BOX_AREA_LEAF_2 * sizeof(ArrayOffset8Bit) +
+		STATIC_HIT_BOX_AMOUNT_IN_STATIC_HIT_BOX_AREA_LEAF_3 * sizeof(ArrayOffset8Bit) +
+		STATIC_HIT_BOX_AMOUNT_IN_STATIC_HIT_BOX_AREA_LEAF_4 * sizeof(ArrayOffset8Bit));
 	// количество страниц, необходимое для того чтобы вместить все хитбоксы
 	SIZE_T pageAmount = hitBoxAmount & (0xFFFFFFFF ^ (pageSize - 1)); // сейчас здесь хранится только целая часть от деления hitBoxAmount на pageSize
 	//SIZE_T moduloPart = hitBoxAmount & (pageSize - 1);
@@ -281,44 +301,85 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	LPVOID dynamicMemory = VirtualAlloc(NULL, pageAmount * pageSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 	
 	// указатель на массив HitBoxWidthAndHeight структур
-	HitBoxWidthAndHeight* HitBoxWidthAndHeightArray = dynamicMemory;
+	HitBoxWidthAndHeight* HitBoxWidthAndHeightArray = (HitBoxWidthAndHeight*) dynamicMemory;
 	// указатель на массив HitBoxCenter структур
-	HitBoxCenter* HitBoxCenterArray = (HitBoxWidthAndHeight*)HitBoxWidthAndHeightArray + 20;
+	HitBoxCenter* HitBoxCenterArray = (HitBoxCenter*)(HitBoxWidthAndHeightArray + HIT_BOX_WIDTH_AND_HEIGHT_AMOUNT);
 	// указатель на массив HitBoxAngle структур
-	HitBoxAngle* HitBoxAngleArray = (HitBoxCenter*) HitBoxCenterArray + 20;
+	HitBoxAngle* HitBoxAngleArray = (HitBoxAngle*)(HitBoxCenterArray + HIT_BOX_CENTER_AMOUNT);
+    // указатель на  массив HitBoxDesc структур
+    HitBoxDesc* StaticHitBoxDescArray = (HitBoxDesc*)(HitBoxAngleArray + HIT_BOX_ANGLE_AMOUNT);
+    // указатель на массив StaticHitBoxArea структур
+    StaticHitBoxArea* StaticHitBoxAreaArray = (StaticHitBoxArea*)(StaticHitBoxDescArray + STATIC_HIT_BOX_DESC_AMOUNT);
+	// указатели на массивы позиций в StaticHitBoxDescArray, которые определяют какие статические хитбоксы есть в листьях staticHitBoxArea
+	// 1 лист
+	ArrayOffset8Bit* Leaf1Array = (ArrayOffset8Bit*)(StaticHitBoxAreaArray + STATIC_HIT_BOX_AREA_AMOUNT);
+	// 2 лист
+	ArrayOffset8Bit* Leaf2Array = Leaf1Array + STATIC_HIT_BOX_AMOUNT_IN_STATIC_HIT_BOX_AREA_LEAF_1;
+	// 3 лист
+	ArrayOffset8Bit* Leaf3Array = Leaf2Array + STATIC_HIT_BOX_AMOUNT_IN_STATIC_HIT_BOX_AREA_LEAF_2;
+	// 4 лист
+	ArrayOffset8Bit* Leaf4Array = Leaf3Array + STATIC_HIT_BOX_AMOUNT_IN_STATIC_HIT_BOX_AREA_LEAF_3;
 	
+    // кладем данные в массивы статических хитбоксов
+    // ширина и высота
+    HitBoxWidthAndHeightArray[0] = {
+        100.0f,
+        5.0f
+    };
+    
+    // центры
+    HitBoxCenterArray[0] = {
+        0.0f,
+        55.0f
+    };
+    HitBoxCenterArray[1] = {
+        55.0f,
+        0.0f
+    };
+    HitBoxCenterArray[2] = {
+        0.0f,
+        -55.0f
+    };
+    HitBoxCenterArray[3] = {
+        -55.0f,
+        0.0f
+    };
+    
+    // углы
+    HitBoxAngleArray[0] = {
+        0.0f
+    };
+    HitBoxAngleArray[1] = {
+        XM_PIDIV2
+    };
 	
-	//1 статический хитбокс
-	*((HitBox*)dynamicMemory) = {
-		0.0f,
-		55.0f,
-		100.0f, 
-		5.0f,
-		0.0f
-	};
-	//2 статический хитбокс
-	*((HitBox*)dynamicMemory + 1) = {
-		55.0f,
-		0.0f,
-		5.0f,
-		100.0f,
-		0.0f
-	};
-	//3 статический хитбокс
-	*((HitBox*)dynamicMemory + 2) = {
-		0.0f,
-		-55.0f,
-		100.0f,
-		5.0f,
-		0.0f
-	};
-	//4 статический хитбокс
-	*((HitBox*)dynamicMemory + 3) = {
-		-55.0f,
-		0.0f,
-		5.0f,
-		100.0f,
-		0.0f
+    // описания статических хитбоксов
+    StaticHitBoxDescArray[0] = {
+        0,
+        0,
+        0
+    };
+    StaticHitBoxDescArray[1] = {
+        0,
+        1,
+        1
+    };
+    StaticHitBoxDescArray[2] = {
+        0,
+        2,
+        0
+    };
+    StaticHitBoxDescArray[3] = {
+        0,
+        3,
+        1
+    };
+
+	// кладем данные в массив областей статических хитбоксов
+	//
+
+	StaticHitBoxAreaArray[0] = {
+
 	};
 
 	MSG msg;// структура, описывающая сообщение
