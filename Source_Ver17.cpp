@@ -22,10 +22,10 @@
 #define STATIC_HIT_BOX_DESC_AMOUNT 20
 #define STATIC_HIT_BOX_AREA_AMOUNT 6
 #define STATIC_HIT_BOX_AREA_LEAF_AMOUNT 4
+#define STATIC_HIT_BOX_AMOUNT_IN_STATIC_HIT_BOX_AREA_LEAF_0 2
 #define STATIC_HIT_BOX_AMOUNT_IN_STATIC_HIT_BOX_AREA_LEAF_1 2
 #define STATIC_HIT_BOX_AMOUNT_IN_STATIC_HIT_BOX_AREA_LEAF_2 2
 #define STATIC_HIT_BOX_AMOUNT_IN_STATIC_HIT_BOX_AREA_LEAF_3 2
-#define STATIC_HIT_BOX_AMOUNT_IN_STATIC_HIT_BOX_AREA_LEAF_4 2
 
 // ОПИСАНИЕ СТРУКТУР
 
@@ -94,7 +94,7 @@ struct StaticHitBoxArea {
 	// у листка нет потомков, значит можно ввести такое объединение:
 	union {
 		StaticHitBoxArea* rightNode; //правый узел в бинарном дереве
-		HitBox** staticHitBoxesArray; //указатель на динмический массив, в которм находятся указатели на хитбоксы, которые находятся в данной зоне
+		ArrayOffset8Bit* staticHitBoxesArray; //указатель на массив, в которм находятся индексы хитбоксов, которые находятся в данной зоне
 	};
 	StaticHitBoxArea* parentNode; //родительский узел в бинарном дереве
 	float centerX; //центр области
@@ -275,30 +275,46 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	
 	// предположим, что размер страницы всегда является степенью двойки
 	// тогда кол-во страниц, необходимое для того чтобы вместить все хитбоксы, можно вычислить так:
+
+	//определяем есть ли выравнивание по 4 байта у гранулярности выделения памяти
+	// остаток от деления гранулярности на 4 байта
+	DWORD allocationGranularityAlignModulo = allocationGranularity & (4UL - 1UL);
+	// дополнительные байты чтобы адрес выделенной памяти был выровнен
+	SIZE_T extraBytes = 0;
+
+	if (allocationGranularityAlignModulo != 0UL) { // если адрес выделяемой памяти невыровнен 
+		extraBytes += (4UL - allocationGranularityAlignModulo);
+	}
+	// p.s. хотя наверно в windows всегда гранулярность выделения памяти через virtualalloc будет кратна 4 байтам
 	
 	// размер памяти, занимаемы хитбоксами
-	SIZE_T hitBoxAmount = sizeof(HIT_BOX_WIDTH_AND_HEIGHT_AMOUNT * sizeof(HitBoxWidthAndHeight) + 
+	SIZE_T hitBoxAmount = sizeof(extraBytes +
+		HIT_BOX_WIDTH_AND_HEIGHT_AMOUNT * sizeof(HitBoxWidthAndHeight) + 
 		HIT_BOX_CENTER_AMOUNT * sizeof(HitBoxCenter) + 
 		HIT_BOX_ANGLE_AMOUNT * sizeof(HitBoxAngle) + 
 		STATIC_HIT_BOX_DESC_AMOUNT * sizeof(HitBoxDesc) + 
 		STATIC_HIT_BOX_AREA_AMOUNT * sizeof(StaticHitBoxArea) +
+		STATIC_HIT_BOX_AMOUNT_IN_STATIC_HIT_BOX_AREA_LEAF_0 * sizeof(ArrayOffset8Bit) +
 		STATIC_HIT_BOX_AMOUNT_IN_STATIC_HIT_BOX_AREA_LEAF_1 * sizeof(ArrayOffset8Bit) +
 		STATIC_HIT_BOX_AMOUNT_IN_STATIC_HIT_BOX_AREA_LEAF_2 * sizeof(ArrayOffset8Bit) +
-		STATIC_HIT_BOX_AMOUNT_IN_STATIC_HIT_BOX_AREA_LEAF_3 * sizeof(ArrayOffset8Bit) +
-		STATIC_HIT_BOX_AMOUNT_IN_STATIC_HIT_BOX_AREA_LEAF_4 * sizeof(ArrayOffset8Bit));
+		STATIC_HIT_BOX_AMOUNT_IN_STATIC_HIT_BOX_AREA_LEAF_3 * sizeof(ArrayOffset8Bit));
+
 	// количество страниц, необходимое для того чтобы вместить все хитбоксы
 	SIZE_T pageAmount = hitBoxAmount & (0xFFFFFFFF ^ (pageSize - 1)); // сейчас здесь хранится только целая часть от деления hitBoxAmount на pageSize
 	//SIZE_T moduloPart = hitBoxAmount & (pageSize - 1);
 	//SIZE_T integerPart = hitBoxAmount & (0xFFFFFFFF ^ (pageSize - 1));
 	
 	// если остаток от деления hitBoxAmount на pageSize не ноль
-	if((hitBoxAmount & (pageSize - 1)) != 0){ 
+	if((hitBoxAmount & (pageSize - 1UL)) != 0UL){ 
 		++pageAmount;
 	}
 	// p.s. конечно легче и понятнее было бы посчитать количество занимаемх страниц памяти с помощью div и mod
 	
 	// выделение памяти под хитбоксы
-	LPVOID dynamicMemory = VirtualAlloc(NULL, pageAmount * pageSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+	// сырая память с учетом байтов для выравнивания
+	LPVOID rawDynamicMemory = VirtualAlloc(NULL, pageAmount * pageSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+	// выравненная по границе 4 байта память 
+	LPVOID dynamicMemory = (LPVOID*)((BYTE*)rawDynamicMemory + extraBytes);
 	
 	// указатель на массив HitBoxWidthAndHeight структур
 	HitBoxWidthAndHeight* HitBoxWidthAndHeightArray = (HitBoxWidthAndHeight*) dynamicMemory;
@@ -312,13 +328,13 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     StaticHitBoxArea* StaticHitBoxAreaArray = (StaticHitBoxArea*)(StaticHitBoxDescArray + STATIC_HIT_BOX_DESC_AMOUNT);
 	// указатели на массивы позиций в StaticHitBoxDescArray, которые определяют какие статические хитбоксы есть в листьях staticHitBoxArea
 	// 1 лист
-	ArrayOffset8Bit* Leaf1Array = (ArrayOffset8Bit*)(StaticHitBoxAreaArray + STATIC_HIT_BOX_AREA_AMOUNT);
+	ArrayOffset8Bit* Leaf0Array = (ArrayOffset8Bit*)(StaticHitBoxAreaArray + STATIC_HIT_BOX_AREA_AMOUNT);
 	// 2 лист
-	ArrayOffset8Bit* Leaf2Array = Leaf1Array + STATIC_HIT_BOX_AMOUNT_IN_STATIC_HIT_BOX_AREA_LEAF_1;
+	ArrayOffset8Bit* Leaf1Array = Leaf0Array + STATIC_HIT_BOX_AMOUNT_IN_STATIC_HIT_BOX_AREA_LEAF_0;
 	// 3 лист
-	ArrayOffset8Bit* Leaf3Array = Leaf2Array + STATIC_HIT_BOX_AMOUNT_IN_STATIC_HIT_BOX_AREA_LEAF_2;
+	ArrayOffset8Bit* Leaf2Array = Leaf1Array + STATIC_HIT_BOX_AMOUNT_IN_STATIC_HIT_BOX_AREA_LEAF_1;
 	// 4 лист
-	ArrayOffset8Bit* Leaf4Array = Leaf3Array + STATIC_HIT_BOX_AMOUNT_IN_STATIC_HIT_BOX_AREA_LEAF_3;
+	ArrayOffset8Bit* Leaf3Array = Leaf2Array + STATIC_HIT_BOX_AMOUNT_IN_STATIC_HIT_BOX_AREA_LEAF_2;
 	
     // кладем данные в массивы статических хитбоксов
     // ширина и высота
@@ -375,12 +391,22 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         1
     };
 
+	// заполняем массивы листьев зон статических хитбоксов
+	// массив 0 листа
+	ArrayOffset8Bit Leaf0Array[2] = { 0 , 3 };
+	// массив 1 листа
+	ArrayOffset8Bit Leaf1Array[2] = { 0 , 1 };
+	// массив 2 листа
+	ArrayOffset8Bit Leaf2Array[2] = { 2 , 3 };
+	// массив 3 листа
+	ArrayOffset8Bit Leaf3Array[2] = { 1 , 2 };
+
 	// кладем данные в массив областей статических хитбоксов
-	//
-
-	StaticHitBoxAreaArray[0] = {
-
+	StaticHitBoxAreaArray[5] = {
+		NULL,
+		Leaf3Array
 	};
+	
 
 	MSG msg;// структура, описывающая сообщение
 	ZeroMemory(&msg, sizeof(MSG));
