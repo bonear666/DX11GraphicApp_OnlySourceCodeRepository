@@ -85,7 +85,8 @@ struct HitBoxDesc {
 	ArrayOffset8Bit widthAndHeightArrayPos; // позиция в массиве структур, которые описывают ширину и высоту хитбокса
 	ArrayOffset8Bit centerArrayPos; // позиция в массиве структур, которые описывают центр хитбокса
 	ArrayOffset16Bit angleArrayPos; // позиция в массиве структур, которые описывают угол хитбокса
-};
+};// хотя такая структура скорее всего будет медленее работать, чем если бы вместо 1-байтных интов я использовал обычные 4-байтные инты
+// по идее процессору предется каждый раз логически умножать 1-байтный инт на маску чтобы занулить ненужные биты и смещать его в начало регистра, я так предполагаю
 
 // структура области неподвижных хитбоксок
 struct StaticHitBoxArea {
@@ -393,18 +394,22 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 	// заполняем массивы листьев зон статических хитбоксов
 	// массив 0 листа
-	ArrayOffset8Bit Leaf0Array[2] = { 0 , 3 };
+	Leaf0Array[0] = 0;
+	Leaf0Array[1] = 3;
 	// массив 1 листа
-	ArrayOffset8Bit Leaf1Array[2] = { 0 , 1 };
+	Leaf1Array[0] = 0;
+	Leaf1Array[1] = 1;
 	// массив 2 листа
-	ArrayOffset8Bit Leaf2Array[2] = { 2 , 3 };
+	Leaf2Array[0] = 2;
+	Leaf2Array[1] = 3;
 	// массив 3 листа
-	ArrayOffset8Bit Leaf3Array[2] = { 1 , 2 };
+	Leaf3Array[0] = 1;
+	Leaf3Array[1] = 2;
 
 	// кладем данные в массив областей статических хитбоксов
 	StaticHitBoxAreaArray[5] = {
 		NULL,
-		Leaf3Array
+		(StaticHitBoxArea*)Leaf3Array
 	};
 	
 
