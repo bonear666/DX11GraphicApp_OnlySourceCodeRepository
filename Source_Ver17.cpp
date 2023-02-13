@@ -16,10 +16,13 @@
 #include <hidusage.h>
 
 // начальные количества структур 
+#define STATIC_HIT_BOX_AMOUNT 20
+/*
 #define HIT_BOX_WIDTH_AND_HEIGHT_AMOUNT 20
 #define HIT_BOX_CENTER_AMOUNT 20
 #define HIT_BOX_ANGLE_AMOUNT 20
 #define STATIC_HIT_BOX_DESC_AMOUNT 20
+*/
 #define STATIC_HIT_BOX_AREA_AMOUNT 6
 #define STATIC_HIT_BOX_AREA_LEAF_AMOUNT 4
 #define STATIC_HIT_BOX_AMOUNT_IN_STATIC_HIT_BOX_AREA_LEAF_0 2
@@ -65,11 +68,11 @@ typedef FLOAT HitBoxAngle;
 typedef unsigned __int8 ArrayOffset8Bit;
 typedef unsigned __int16 ArrayOffset16Bit;
 
-// структура центра =итбокса
-struct HitBoxCenter {
+// структура центра хитбокса
+typedef struct {
 	float x;
 	float z;
-};
+} HitBoxCenter, CameraPosition;
 
 // структура хитбокса
 struct HitBox {
@@ -95,7 +98,7 @@ struct StaticHitBoxArea {
 	// у листка нет потомков, значит можно ввести такое объединение:
 	union {
 		StaticHitBoxArea* rightNode; //правый узел в бинарном дереве
-		ArrayOffset8Bit* staticHitBoxesArray; //указатель на массив, в которм находятся индексы хитбоксов, которые находятся в данной зоне
+		HitBox** staticHitBoxesArray; //указатель на массив, в котором храянтся указатели хитбоксов, которые находятся в данной зоне
 	};
 	StaticHitBoxArea* parentNode; //родительский узел в бинарном дереве
 	float centerX; //центр области
@@ -142,9 +145,11 @@ XMVECTOR moveAheadVector = XMVectorSet(0.0f, 0.0f, -0.1f, 0.0f); // вектор движе
 XMVECTOR moveBackVector = XMVectorSet(0.0f, 0.0f, 0.1f, 0.0f); // вектор движения в отрицательном направлении оси
 XMVECTOR moveRightVector = XMVectorSet(0.0f, 0.0f, 0.0f, -0.1f);
 XMVECTOR moveLeftVector = XMVectorSet(0.0f, 0.0f, 0.0f, 0.1f);
-StaticHitBoxArea* currentHitBoxArea; // указатель на hitboxarea, в которой находится камера в данный момент
 DWORD pageSize; // размер страницы виртуальной памяти
 DWORD allocationGranularity; // выравнивание адресов в виртуальной памяти
+StaticHitBoxArea* currentHitBoxArea; // указатель на hitboxarea, в которой находится камера в данный момент
+CameraPosition currentCameraPos; // текущая позиция камеры в координатах x,z
+
 
 
 //ПРЕДВАРИТЕЛЬНЫЕ ОБЪЯВЛЕНИЯ ФУНКЦИЙ
@@ -198,7 +203,10 @@ void RotationAroundAxis(XMVECTOR yAxis, XMVECTOR point, FLOAT angle, XMMATRIX* o
 // nearZ, farZ координаты плоскости отсечений, деленные на W
 // cameraDistance не должен быть равен нулю, так как исходя из формулы, Z координата вершины после умножения на матрицу проекции будет всегда равна 1
 void SetProjectionMatrixWithCameraDistance(MatricesBuffer* pMatricesBuffer, FLOAT angleHoriz, FLOAT angleVert, FLOAT nearZ, FLOAT farZ, FLOAT cameraDistance, BOOL saveProportionsFlag);
-void InitPageSizeAndAllocGranularityVariables(); // инициализация глобальных статических переменных с размером страницы виртуальной памяти, и переменной с гранулярностью памяти
+// инициализация глобальных статических переменных с размером страницы виртуальной памяти, и переменной с гранулярностью памяти
+void InitPageSizeAndAllocGranularityVariables(); 
+//
+void ChangesOfStaticHtBoxesArea();
 
 // Главная функция, точка входа
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd) {
@@ -290,10 +298,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	
 	// размер памяти, занимаемы хитбоксами
 	SIZE_T hitBoxAmount = sizeof(extraBytes +
-		HIT_BOX_WIDTH_AND_HEIGHT_AMOUNT * sizeof(HitBoxWidthAndHeight) + 
-		HIT_BOX_CENTER_AMOUNT * sizeof(HitBoxCenter) + 
-		HIT_BOX_ANGLE_AMOUNT * sizeof(HitBoxAngle) + 
-		STATIC_HIT_BOX_DESC_AMOUNT * sizeof(HitBoxDesc) + 
+		STATIC_HIT_BOX_AMOUNT * sizeof(HitBox) +
 		STATIC_HIT_BOX_AREA_AMOUNT * sizeof(StaticHitBoxArea) +
 		STATIC_HIT_BOX_AMOUNT_IN_STATIC_HIT_BOX_AREA_LEAF_0 * sizeof(ArrayOffset8Bit) +
 		STATIC_HIT_BOX_AMOUNT_IN_STATIC_HIT_BOX_AREA_LEAF_1 * sizeof(ArrayOffset8Bit) +
@@ -313,103 +318,136 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	
 	// выделение памяти под хитбоксы
 	// сырая память с учетом байтов для выравнивания
-	LPVOID rawDynamicMemory = VirtualAlloc(NULL, pageAmount * pageSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-	// выравненная по границе 4 байта память 
-	LPVOID dynamicMemory = (LPVOID*)((BYTE*)rawDynamicMemory + extraBytes);
+	LPVOID dynamicMemory = VirtualAlloc(NULL, pageAmount * pageSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 	
-	// указатель на массив HitBoxWidthAndHeight структур
-	HitBoxWidthAndHeight* HitBoxWidthAndHeightArray = (HitBoxWidthAndHeight*) dynamicMemory;
-	// указатель на массив HitBoxCenter структур
-	HitBoxCenter* HitBoxCenterArray = (HitBoxCenter*)(HitBoxWidthAndHeightArray + HIT_BOX_WIDTH_AND_HEIGHT_AMOUNT);
-	// указатель на массив HitBoxAngle структур
-	HitBoxAngle* HitBoxAngleArray = (HitBoxAngle*)(HitBoxCenterArray + HIT_BOX_CENTER_AMOUNT);
-    // указатель на  массив HitBoxDesc структур
-    HitBoxDesc* StaticHitBoxDescArray = (HitBoxDesc*)(HitBoxAngleArray + HIT_BOX_ANGLE_AMOUNT);
+	// указатель на массив статических хитбоксов, выровненный по границе 4 байта
+	HitBox* StaticHitBoxArray = (HitBox*)((BYTE*)dynamicMemory + extraBytes);
     // указатель на массив StaticHitBoxArea структур
-    StaticHitBoxArea* StaticHitBoxAreaArray = (StaticHitBoxArea*)(StaticHitBoxDescArray + STATIC_HIT_BOX_DESC_AMOUNT);
+    StaticHitBoxArea* StaticHitBoxAreaArray = (StaticHitBoxArea*)(StaticHitBoxArray + STATIC_HIT_BOX_AMOUNT);
 	// указатели на массивы позиций в StaticHitBoxDescArray, которые определяют какие статические хитбоксы есть в листьях staticHitBoxArea
 	// 1 лист
-	ArrayOffset8Bit* Leaf0Array = (ArrayOffset8Bit*)(StaticHitBoxAreaArray + STATIC_HIT_BOX_AREA_AMOUNT);
+	HitBox** Leaf0Array = (HitBox**)(StaticHitBoxAreaArray + STATIC_HIT_BOX_AREA_AMOUNT);
 	// 2 лист
-	ArrayOffset8Bit* Leaf1Array = Leaf0Array + STATIC_HIT_BOX_AMOUNT_IN_STATIC_HIT_BOX_AREA_LEAF_0;
+	HitBox** Leaf1Array = Leaf0Array + STATIC_HIT_BOX_AMOUNT_IN_STATIC_HIT_BOX_AREA_LEAF_0;
 	// 3 лист
-	ArrayOffset8Bit* Leaf2Array = Leaf1Array + STATIC_HIT_BOX_AMOUNT_IN_STATIC_HIT_BOX_AREA_LEAF_1;
+	HitBox** Leaf2Array = Leaf1Array + STATIC_HIT_BOX_AMOUNT_IN_STATIC_HIT_BOX_AREA_LEAF_1;
 	// 4 лист
-	ArrayOffset8Bit* Leaf3Array = Leaf2Array + STATIC_HIT_BOX_AMOUNT_IN_STATIC_HIT_BOX_AREA_LEAF_2;
+	HitBox** Leaf3Array = Leaf2Array + STATIC_HIT_BOX_AMOUNT_IN_STATIC_HIT_BOX_AREA_LEAF_2;
 	
     // кладем данные в массивы статических хитбоксов
-    // ширина и высота
-    HitBoxWidthAndHeightArray[0] = {
-        100.0f,
-        5.0f
-    };
-    
-    // центры
-    HitBoxCenterArray[0] = {
-        0.0f,
-        55.0f
-    };
-    HitBoxCenterArray[1] = {
-        55.0f,
-        0.0f
-    };
-    HitBoxCenterArray[2] = {
-        0.0f,
-        -55.0f
-    };
-    HitBoxCenterArray[3] = {
-        -55.0f,
-        0.0f
-    };
-    
-    // углы
-    HitBoxAngleArray[0] = {
-        0.0f
-    };
-    HitBoxAngleArray[1] = {
-        XM_PIDIV2
-    };
-	
-    // описания статических хитбоксов
-    StaticHitBoxDescArray[0] = {
-        0,
-        0,
-        0
-    };
-    StaticHitBoxDescArray[1] = {
-        0,
-        1,
-        1
-    };
-    StaticHitBoxDescArray[2] = {
-        0,
-        2,
-        0
-    };
-    StaticHitBoxDescArray[3] = {
-        0,
-        3,
-        1
-    };
+	// 0 хитбокс
+	StaticHitBoxArray[0] = {
+		0.0f,
+		55.0f,
+		100.0f,
+		5.0f,
+		0.0f
+	};
+	// 1 хитбокс
+	StaticHitBoxArray[1] = {
+		55.0f,
+		0.0f,
+		5.0f,
+		100.0f,
+		0.0f
+	};
+	// 2 хитбокс
+	StaticHitBoxArray[2] = {
+		0.0f,
+		-55.0f,
+		100.0f,
+		5.0f,
+		0.0f
+	};
+	// 3 хитбокс
+	StaticHitBoxArray[3] = {
+		-55.0f,
+		0.0f,
+		5.0f,
+		100.0f,
+		0.0f
+	};
 
 	// заполняем массивы листьев зон статических хитбоксов
 	// массив 0 листа
-	Leaf0Array[0] = 0;
-	Leaf0Array[1] = 3;
+	Leaf0Array[0] = &StaticHitBoxArray[0];
+	Leaf0Array[1] = &StaticHitBoxArray[3];
 	// массив 1 листа
-	Leaf1Array[0] = 0;
-	Leaf1Array[1] = 1;
+	Leaf1Array[0] = &StaticHitBoxArray[0];
+	Leaf1Array[1] = &StaticHitBoxArray[1];
 	// массив 2 листа
-	Leaf2Array[0] = 2;
-	Leaf2Array[1] = 3;
+	Leaf2Array[0] = &StaticHitBoxArray[2];
+	Leaf2Array[1] = &StaticHitBoxArray[3];
 	// массив 3 листа
-	Leaf3Array[0] = 1;
-	Leaf3Array[1] = 2;
+	Leaf3Array[0] = &StaticHitBoxArray[1];
+	Leaf3Array[1] = &StaticHitBoxArray[2];
 
 	// кладем данные в массив областей статических хитбоксов
+	// 0 область
+	StaticHitBoxAreaArray[0] = {
+		&StaticHitBoxAreaArray[2],
+		&StaticHitBoxAreaArray[3],
+		NULL,
+		0.0f,
+		25.0f,
+		100.0f,
+		50.0f,
+		0
+	};
+	// 1 область
+	StaticHitBoxAreaArray[1] = {
+		&StaticHitBoxAreaArray[4],
+		&StaticHitBoxAreaArray[5],
+		NULL,
+		0.0f,
+		-25.0f,
+		100.0f,
+		50.0f,
+		1
+	};
+	// 2 область
+	StaticHitBoxAreaArray[2] = {
+		NULL,
+		(StaticHitBoxArea*)Leaf0Array,
+		&StaticHitBoxAreaArray[0],
+		-25.0f,
+		25.0f,
+		50.0f,
+		50.0f,
+		0
+	};
+	// 3 область
+	StaticHitBoxAreaArray[3] = {
+		NULL,
+		(StaticHitBoxArea*)Leaf1Array,
+		&StaticHitBoxAreaArray[0],
+		25.0f,
+		25.0f,
+		50.0f,
+		50.0f,
+		1
+	};
+	// 4 область
+	StaticHitBoxAreaArray[4] = {
+		NULL,
+		(StaticHitBoxArea*)Leaf2Array,
+		&StaticHitBoxAreaArray[1],
+		-25.0f,
+		-25.0f,
+		50.0f,
+		50.0f,
+		0
+	};
+	// 5 область
 	StaticHitBoxAreaArray[5] = {
 		NULL,
-		(StaticHitBoxArea*)Leaf3Array
+		(StaticHitBoxArea*)Leaf3Array,
+		&StaticHitBoxAreaArray[1],
+		25.0f,
+		-25.0f,
+		50.0f,
+		50.0f,
+		1
 	};
 	
 
