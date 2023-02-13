@@ -103,8 +103,10 @@ struct StaticHitBoxArea {
 	StaticHitBoxArea* parentNode; //родительский узел в бинарном дереве
 	float centerX; //центр области
 	float centerZ;
-	float width;
-	float height;
+	float lowX; // отрезок, характеризующий ширину области 
+	float highX;
+	float lowZ; // отрезок, характеризующий высоту области
+	float highZ;
 	bool nodeSideFlag; // 0 если узел является левым узлом parentNode, 1 если узел является правым узлом parentNode
 };
 
@@ -147,6 +149,17 @@ XMVECTOR moveRightVector = XMVectorSet(0.0f, 0.0f, 0.0f, -0.1f);
 XMVECTOR moveLeftVector = XMVectorSet(0.0f, 0.0f, 0.0f, 0.1f);
 DWORD pageSize; // размер страницы виртуальной памяти
 DWORD allocationGranularity; // выравнивание адресов в виртуальной памяти
+
+// переменные, относящиеся к хитбоксам
+LPVOID dynamicMemory; // сырая память с учетом байтов для выравнивания
+SIZE_T pageAmount; // количество страниц, необходимое для того чтобы вместить все хитбоксы
+HitBox* StaticHitBoxArray; // указатель на массив статических хитбоксов, выровненный по границе 4 байта
+StaticHitBoxArea* StaticHitBoxAreaArray; // указатель на массив StaticHitBoxArea структур
+// указатели на массивы позиций в StaticHitBoxDescArray, которые определяют какие статические хитбоксы есть в листьях staticHitBoxArea
+HitBox** Leaf0Array; // 0 лист
+HitBox** Leaf1Array; // 1 лист
+HitBox** Leaf2Array; // 2 лист
+HitBox** Leaf3Array; // 3 лист
 StaticHitBoxArea* currentHitBoxArea; // указатель на hitboxarea, в которой находится камера в данный момент
 CameraPosition currentCameraPos; // текущая позиция камеры в координатах x,z
 
@@ -205,8 +218,12 @@ void RotationAroundAxis(XMVECTOR yAxis, XMVECTOR point, FLOAT angle, XMMATRIX* o
 void SetProjectionMatrixWithCameraDistance(MatricesBuffer* pMatricesBuffer, FLOAT angleHoriz, FLOAT angleVert, FLOAT nearZ, FLOAT farZ, FLOAT cameraDistance, BOOL saveProportionsFlag);
 // инициализация глобальных статических переменных с размером страницы виртуальной памяти, и переменной с гранулярностью памяти
 void InitPageSizeAndAllocGranularityVariables(); 
-//
-void ChangesOfStaticHtBoxesArea();
+// проверка на изменение области статических хитбоксов,т.е. изменилась ли позиция камеры относительно текущей области статических хитбоксов
+bool ChangesOfStaticHtBoxesArea();
+// определенние текущей области статических хитбоксов, в которой находится камера в данный момент
+void DefineCurrentStaticHtBoxesArea();
+// проверка на столкновение камеры со статическими хитбоксами в текущей области статических хитбоксов
+void StaticHitBoxesCollisionDetection();
 
 // Главная функция, точка входа
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd) {
@@ -325,13 +342,13 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     // указатель на массив StaticHitBoxArea структур
     StaticHitBoxArea* StaticHitBoxAreaArray = (StaticHitBoxArea*)(StaticHitBoxArray + STATIC_HIT_BOX_AMOUNT);
 	// указатели на массивы позиций в StaticHitBoxDescArray, которые определяют какие статические хитбоксы есть в листьях staticHitBoxArea
-	// 1 лист
+	// 0 лист
 	HitBox** Leaf0Array = (HitBox**)(StaticHitBoxAreaArray + STATIC_HIT_BOX_AREA_AMOUNT);
-	// 2 лист
+	// 1 лист
 	HitBox** Leaf1Array = Leaf0Array + STATIC_HIT_BOX_AMOUNT_IN_STATIC_HIT_BOX_AREA_LEAF_0;
-	// 3 лист
+	// 2 лист
 	HitBox** Leaf2Array = Leaf1Array + STATIC_HIT_BOX_AMOUNT_IN_STATIC_HIT_BOX_AREA_LEAF_1;
-	// 4 лист
+	// 3 лист
 	HitBox** Leaf3Array = Leaf2Array + STATIC_HIT_BOX_AMOUNT_IN_STATIC_HIT_BOX_AREA_LEAF_2;
 	
     // кладем данные в массивы статических хитбоксов
@@ -1389,6 +1406,44 @@ void InitPageSizeAndAllocGranularityVariables() {
 	pageSize = systemInfo.dwPageSize;
 	allocationGranularity = systemInfo.dwAllocationGranularity;
 }
+
+bool ChangesOfStaticHtBoxesArea() {
+	// если позиция камеры находится внутри текущей области статических хитбоксов
+	if ((currentCameraPos.x >= currentHitBoxArea->lowX) and
+		(currentCameraPos.x <= currentHitBoxArea->highX) and
+		(currentCameraPos.z >= currentHitBoxArea->lowZ) and
+		(currentCameraPos.z <= currentHitBoxArea->highZ)) 
+	{
+		return false;
+	}
+	return true;
+};
+
+void DefineCurrentStaticHtBoxesArea() {
+	if ((currentCameraPos.x >= StaticHitBoxAreaArray[0].lowX) and
+		(currentCameraPos.x <= StaticHitBoxAreaArray[0].highX) and
+		(currentCameraPos.z >= StaticHitBoxAreaArray[0].lowZ) and
+		(currentCameraPos.z <= StaticHitBoxAreaArray[0].highZ)) 
+	{
+		currentHitBoxArea = &StaticHitBoxAreaArray[0];
+	}
+	currentHitBoxArea = &StaticHitBoxAreaArray[1];
+
+	while (currentHitBoxArea->leftNode != NULL) {
+		if ((currentCameraPos.x >= currentHitBoxArea->leftNode->lowX) and
+			(currentCameraPos.x <= currentHitBoxArea->leftNode->highX) and
+			(currentCameraPos.z >= currentHitBoxArea->leftNode->lowZ) and
+			(currentCameraPos.z <= currentHitBoxArea->leftNode->highZ)) 
+		{
+			currentHitBoxArea = currentHitBoxArea->leftNode;
+		}
+		currentHitBoxArea = currentHitBoxArea->rightNode;
+	}
+};
+
+void StaticHitBoxesCollisionDetection() {
+
+};
 
 
 void ReleaseObjects() {
