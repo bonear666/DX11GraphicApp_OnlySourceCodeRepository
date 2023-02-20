@@ -68,7 +68,7 @@ typedef FLOAT HitBoxAngle;
 typedef unsigned __int8 ArrayOffset8Bit;
 typedef unsigned __int16 ArrayOffset16Bit;
 
-// структура центра хитбокса
+// структура центра хитбокса, и позиции камеры в глобальных координатах
 typedef struct {
 	float x;
 	float z;
@@ -80,7 +80,7 @@ struct HitBox {
 	float centerZ;
 	float width;
 	float height;
-	float angle;
+	XMMATRIX* angleMatrixRotation;
 };
 
 // структура описания хитбокса
@@ -103,10 +103,11 @@ struct StaticHitBoxArea {
 	StaticHitBoxArea* parentNode; //родительский узел в бинарном дереве
 	float centerX; //центр области
 	float centerZ;
-	float lowX; // отрезок, характеризующий ширину области 
+	float lowX; // отрезок, характеризующий ширину области(координаты отрезка представлены в глобальной системе координат)
 	float highX;
-	float lowZ; // отрезок, характеризующий высоту области
+	float lowZ; // отрезок, характеризующий высоту области(координаты отрезка представлены в глобальной системе координат)
 	float highZ;
+	int staticHitBoxesAmount; // количество статических хитбоксов в массиве статических массивов(актуально только для листьев)
 	bool nodeSideFlag; // 0 если узел является левым узлом parentNode, 1 если узел является правым узлом parentNode
 };
 
@@ -161,8 +162,21 @@ HitBox** Leaf1Array; // 1 лист
 HitBox** Leaf2Array; // 2 лист
 HitBox** Leaf3Array; // 3 лист
 StaticHitBoxArea* currentHitBoxArea; // указатель на hitboxarea, в которой находится камера в данный момент
-CameraPosition currentCameraPos; // текущая позиция камеры в координатах x,z
-
+XMFLOAT4A currentCameraPos; // текущая позиция камеры в координатах x,z
+// массив матриц поворота статических хитбоксов
+// чтобы выяснить попадает ли позиция камеры внутрь хитбокса, нам нужно сместить центр хитбокса в начало координат и
+// соответственно это приведет к смещению позиции камеры(первая матрица(из позиции камеры вычитаем позицию хитбокса))
+// и затем повораxиваем систему координат так, чтобы ширина хитбокса была параллельна оси X, а высота хитбокса параллельная оси Z
+// такой поворот отразится и на поциции камеры относительно хитбокса, поэтому поворачиваем и позицию камеры(умножение на вторую матрицу)
+XMMATRIX staticHitBoxesRotationMatricesArray[4] = { // аргументы первой функции - отрицательное значение позиции хитбокса
+	// аргументы второй функции - отрицательное значение угла поворота хитбокса, относительно системы координат, проходящей через центр хитбокса
+	XMMatrixTranslation(0.0f, 0.0f, -55.0f) * XMMatrixRotationY(0.0f), // матрица поворота для 0 хитбокса
+	XMMatrixTranslation(-55.0f, 0.0f, 0.0f) * XMMatrixRotationY(0.0f), // матрица поворота для 1 хитбокса
+	XMMatrixTranslation(0.0f, 0.0f, 55.0f) * XMMatrixRotationY(0.0f), // матрица поворота для 2 хитбокса
+	XMMatrixTranslation(55.0f, 0.0f, 0.0f) * XMMatrixRotationY(0.0f) // матрица поворота для 3 хитбокса
+}; 
+// 
+XMVECTOR sseGeneralPurposeVariable0;
 
 
 //ПРЕДВАРИТЕЛЬНЫЕ ОБЪЯВЛЕНИЯ ФУНКЦИЙ
@@ -358,7 +372,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		55.0f,
 		100.0f,
 		5.0f,
-		0.0f
+		&staticHitBoxesRotationMatricesArray[0]
 	};
 	// 1 хитбокс
 	StaticHitBoxArray[1] = {
@@ -366,7 +380,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		0.0f,
 		5.0f,
 		100.0f,
-		0.0f
+		&staticHitBoxesRotationMatricesArray[1]
 	};
 	// 2 хитбокс
 	StaticHitBoxArray[2] = {
@@ -374,7 +388,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		-55.0f,
 		100.0f,
 		5.0f,
-		0.0f
+		&staticHitBoxesRotationMatricesArray[2]
 	};
 	// 3 хитбокс
 	StaticHitBoxArray[3] = {
@@ -382,7 +396,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		0.0f,
 		5.0f,
 		100.0f,
-		0.0f
+		&staticHitBoxesRotationMatricesArray[3]
 	};
 
 	// заполняем массивы листьев зон статических хитбоксов
@@ -1420,6 +1434,9 @@ bool ChangesOfStaticHtBoxesArea() {
 };
 
 void DefineCurrentStaticHtBoxesArea() {
+	// так как нет корня в бинарном дереве, то приходится отдельно проверять в какой из двух первых(0 и 1) областей 
+	// находится камера
+	// если камера находится внутри нулевой области статических хитбоксов
 	if ((currentCameraPos.x >= StaticHitBoxAreaArray[0].lowX) and
 		(currentCameraPos.x <= StaticHitBoxAreaArray[0].highX) and
 		(currentCameraPos.z >= StaticHitBoxAreaArray[0].lowZ) and
@@ -1429,7 +1446,9 @@ void DefineCurrentStaticHtBoxesArea() {
 	}
 	currentHitBoxArea = &StaticHitBoxAreaArray[1];
 
+	// пока не дошли до листа продолжаем определять в какой области находится камера
 	while (currentHitBoxArea->leftNode != NULL) {
+		// если камера находится внутри нулевой области статических хитбоксов
 		if ((currentCameraPos.x >= currentHitBoxArea->leftNode->lowX) and
 			(currentCameraPos.x <= currentHitBoxArea->leftNode->highX) and
 			(currentCameraPos.z >= currentHitBoxArea->leftNode->lowZ) and
@@ -1442,7 +1461,12 @@ void DefineCurrentStaticHtBoxesArea() {
 };
 
 void StaticHitBoxesCollisionDetection() {
+	sseGeneralPurposeVariable0 = XMLoadFloat4A(&currentCameraPos);
 
+	// если позиция камеры оказалась внутри хитбокса(т.е. произошло столкновение), значит нужно камеру вытолкнуть за пределы хитбокса
+	for (int i = 0; i < currentHitBoxArea->staticHitBoxesAmount; ++i) { 
+		currentHitBoxArea->staticHitBoxesArray 
+	}
 };
 
 
