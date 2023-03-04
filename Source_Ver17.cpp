@@ -78,8 +78,9 @@ typedef struct {
 struct HitBox {
 	float centerX;
 	float centerZ;
-	float width;
-	float height;
+	XMFLOAT3 widthHeightLength;
+	//float width;
+	//float height;
 	XMMATRIX* angleMatrixRotation;
 };
 
@@ -105,7 +106,7 @@ struct StaticHitBoxArea {
 	float centerZ;
 	float lowX; // отрезок, характеризующий ширину области(координаты отрезка представлены в глобальной системе координат)
 	float highX;
-	float lowZ; // отрезок, характеризующий высоту области(координаты отрезка представлены в глобальной системе координат)
+	float lowZ; // отрезок, характеризующий длину области(координаты отрезка представлены в глобальной системе координат)
 	float highZ;
 	int staticHitBoxesAmount; // количество статических хитбоксов в массиве статических массивов(актуально только для листьев)
 	bool nodeSideFlag; // 0 если узел является левым узлом parentNode, 1 если узел является правым узлом parentNode
@@ -162,7 +163,8 @@ HitBox** Leaf1Array; // 1 лист
 HitBox** Leaf2Array; // 2 лист
 HitBox** Leaf3Array; // 3 лист
 StaticHitBoxArea* currentHitBoxArea; // указатель на hitboxarea, в которой находится камера в данный момент
-XMFLOAT4A currentCameraPos; // текущая позиция камеры в координатах x,z
+XMFLOAT3 currentCameraPos; // текущая позиция камеры в координатах x,z
+XMFLOAT3 previousCameraPos; // позиция камеры на предыдущем кадре
 // массив матриц поворота статических хитбоксов
 // чтобы выяснить попадает ли позиция камеры внутрь хитбокса, нам нужно сместить центр хитбокса в начало координат и
 // соответственно это приведет к смещению позиции камеры(первая матрица(из позиции камеры вычитаем позицию хитбокса))
@@ -175,8 +177,11 @@ XMMATRIX staticHitBoxesRotationMatricesArray[4] = { // аргументы первой функции 
 	XMMatrixTranslation(0.0f, 0.0f, 55.0f) * XMMatrixRotationY(0.0f), // матрица поворота для 2 хитбокса
 	XMMatrixTranslation(55.0f, 0.0f, 0.0f) * XMMatrixRotationY(0.0f) // матрица поворота для 3 хитбокса
 }; 
-// 
-XMVECTOR sseGeneralPurposeVariable0;
+// переменная, куда кладем произвольные переменные типа XMFLOAT4
+XMVECTOR sseProxyRegister0;
+XMVECTOR sseProxyRegister1;
+// переменная, куда кладем произвольные переменные типа XMVECTOR
+XMFLOAT3 xmfloat4Storage0;
 
 
 //ПРЕДВАРИТЕЛЬНЫЕ ОБЪЯВЛЕНИЯ ФУНКЦИЙ
@@ -1461,11 +1466,25 @@ void DefineCurrentStaticHtBoxesArea() {
 };
 
 void StaticHitBoxesCollisionDetection() {
-	sseGeneralPurposeVariable0 = XMLoadFloat4A(&currentCameraPos);
+	// кладем текущую позицую камеры
+	sseProxyRegister0 = XMLoadFloat3(&currentCameraPos);
 
 	// если позиция камеры оказалась внутри хитбокса(т.е. произошло столкновение), значит нужно камеру вытолкнуть за пределы хитбокса
 	for (int i = 0; i < currentHitBoxArea->staticHitBoxesAmount; ++i) { 
-		currentHitBoxArea->staticHitBoxesArray 
+		// смещаем и поворачиваем текущую позиция камеры
+		sseProxyRegister0 = XMVector3Transform(sseProxyRegister0, *(currentHitBoxArea->staticHitBoxesArray[i]->angleMatrixRotation));
+		
+		// кладем ширину высоту длину хитбокса
+		sseProxyRegister1 = XMLoadFloat3(&currentHitBoxArea->staticHitBoxesArray[i]->widthHeightLength);
+		// если 0 <= x <= width && 0 <= y <= height && 0 <= z <= length, где xyz принадлежат текущей позиции камеры, а width height length - хитбоксу
+		// если позиция камеры внутри хитбокса
+		if (XMVector3LessOrEqual(sseProxyRegister0, sseProxyRegister1) and
+			XMVector3GreaterOrEqual(sseProxyRegister0, g_XMIdentityR3))
+		{
+			
+		}
+		
+
 	}
 };
 
