@@ -166,20 +166,24 @@ StaticHitBoxArea* currentHitBoxArea; // указатель на hitboxarea, в которой наход
 XMFLOAT3 currentCameraPos; // текущая позиция камеры в координатах x,z
 XMFLOAT3 previousCameraPos; // позиция камеры на предыдущем кадре
 // массив матриц поворота статических хитбоксов
-// чтобы выяснить попадает ли позиция камеры внутрь хитбокса, нам нужно сместить центр хитбокса в начало координат и
-// соответственно это приведет к смещению позиции камеры(первая матрица(из позиции камеры вычитаем позицию хитбокса))
-// и затем повораxиваем систему координат так, чтобы ширина хитбокса была параллельна оси X, а высота хитбокса параллельная оси Z
-// такой поворот отразится и на поциции камеры относительно хитбокса, поэтому поворачиваем и позицию камеры(умножение на вторую матрицу)
-XMMATRIX staticHitBoxesRotationMatricesArray[4] = { // аргументы первой функции - отрицательное значение позиции хитбокса
+// чтобы выяснить попадает ли позиция камеры внутрь хитбокса, нам нужно сместить центр хитбокса так, чтобы ширина хитбокса совпадала с осью X,
+// а длина хитбокса совпадала с осью Z
+// соответственно это приведет к смещению позиции камеры(первая матрица(из позиции камеры вычитаем позицию хитбокса затем смещаем в точку с координатами
+// (ширина хитбокса/2 , 0, длина хитбокса / 2) ))
+// и затем повораxиваем систему координат так, чтобы ширина хитбокса совпадала с осью X, а длина хитбокса с осью Z
+// такой поворот отразится и на позиции камеры относительно хитбокса, поэтому поворачиваем и позицию камеры(умножение на вторую матрицу)
+const XMMATRIX staticHitBoxesRotationMatricesArray[4] = { // аргументы первой функции - отрицательное значение позиции хитбокса
 	// аргументы второй функции - отрицательное значение угла поворота хитбокса, относительно системы координат, проходящей через центр хитбокса
-	XMMatrixTranslation(0.0f, 0.0f, -55.0f) * XMMatrixRotationY(0.0f), // матрица поворота для 0 хитбокса
-	XMMatrixTranslation(-55.0f, 0.0f, 0.0f) * XMMatrixRotationY(0.0f), // матрица поворота для 1 хитбокса
-	XMMatrixTranslation(0.0f, 0.0f, 55.0f) * XMMatrixRotationY(0.0f), // матрица поворота для 2 хитбокса
-	XMMatrixTranslation(55.0f, 0.0f, 0.0f) * XMMatrixRotationY(0.0f) // матрица поворота для 3 хитбокса
+	XMMatrixTranslation(-(0.0f - 50.0f), 0.0f, -(55.0f - 2.5f)) * XMMatrixRotationY(0.0f), // матрица поворота для 0 хитбокса
+	XMMatrixTranslation(-(55.0f - 2.5f), 0.0f, -(0.0f - 50.0f)) * XMMatrixRotationY(0.0f), // матрица поворота для 1 хитбокса
+	XMMatrixTranslation(-(0.0f - 50.0f), 0.0f, -(-55.0f - 2.5f)) * XMMatrixRotationY(0.0f), // матрица поворота для 2 хитбокса
+	XMMatrixTranslation(-(-55.0f - 2.5f), 0.0f, -(0.0f - 50.0f)) * XMMatrixRotationY(0.0f) // матрица поворота для 3 хитбокса
 }; 
 // переменная, куда кладем произвольные переменные типа XMFLOAT4
 XMVECTOR sseProxyRegister0;
 XMVECTOR sseProxyRegister1;
+XMVECTOR sseProxyRegister2;
+XMVECTOR sseProxyRegister3;
 // переменная, куда кладем произвольные переменные типа XMVECTOR
 XMFLOAT3 xmfloat4Storage0;
 
@@ -1477,14 +1481,42 @@ void StaticHitBoxesCollisionDetection() {
 		// кладем ширину высоту длину хитбокса
 		sseProxyRegister1 = XMLoadFloat3(&currentHitBoxArea->staticHitBoxesArray[i]->widthHeightLength);
 		// если 0 <= x <= width && 0 <= y <= height && 0 <= z <= length, где xyz принадлежат текущей позиции камеры, а width height length - хитбоксу
-		// если позиция камеры внутри хитбокса
+		// то есть если позиция камеры внутри хитбокса
 		if (XMVector3LessOrEqual(sseProxyRegister0, sseProxyRegister1) and
 			XMVector3GreaterOrEqual(sseProxyRegister0, g_XMIdentityR3))
 		{
-			
-		}
-		
+			// находим расстояние позиции камеры до правых верхних граней хитбокса
+			sseProxyRegister1 = sseProxyRegister1 - sseProxyRegister0;
+			// находим минимум между расстоянием позиции камеры до нижних левых граней хитбокса(это координаты позиции камеры) и 
+			// расстоянием позици камеры до верхних правых граней хитбокса
+			sseProxyRegister2 = XMVectorMin(sseProxyRegister0, sseProxyRegister1);
 
+			float minX = XMVectorGetX(sseProxyRegister2);
+			float minZ = XMVectorGetZ(sseProxyRegister2);
+			//float minRes = XMMin(minX, minZ);
+
+			if (minX < minZ) {
+				if (minX == XMVectorGetX(sseProxyRegister0)) {
+					sseProxyRegister0 = XMVectorSetX(sseProxyRegister0, -0.005f);
+				} 
+				else {
+					sseProxyRegister1 = XMVectorSetX(sseProxyRegister1, 0.005f);
+					sseProxyRegister2 += sseProxyRegister1;
+					sseProxyRegister0 += XMVectorAndInt(sseProxyRegister2, g_XMMaskX);
+				}
+			}
+			else {
+				if (minZ == XMVectorGetZ(sseProxyRegister0)) {
+					sseProxyRegister0 = XMVectorSetZ(sseProxyRegister0, -0.005f);
+				}
+				else {
+					sseProxyRegister1 = XMVectorSetZ(sseProxyRegister1, 0.005f);
+					sseProxyRegister2 += sseProxyRegister1;
+					sseProxyRegister0 += XMVectorAndInt(sseProxyRegister2, g_XMMaskZ);
+				}
+			}
+		}
+		// умножить на обратную матрицу
 	}
 };
 
