@@ -79,10 +79,8 @@ struct HitBox {
 	float centerX;
 	float centerZ;
 	XMFLOAT3 widthHeightLength;
-	//float width;
-	//float height;
-	XMMATRIX* angleMatrixRotation; // матрица смещени€ и поворота
-	XMMATRIX* invertAngleMatrixRotation; // обратна€ матрица смещени€ и поворота
+	const XMMATRIX* angleMatrixRotation; // матрица смещени€ и поворота
+	const XMMATRIX* invertAngleMatrixRotation; // обратна€ матрица смещени€ и поворота
 };
 
 // структура описани€ хитбокса
@@ -259,6 +257,8 @@ bool ChangesOfStaticHtBoxesArea();
 void DefineCurrentStaticHtBoxesArea();
 // проверка на столкновение камеры со статическими хитбоксами в текущей области статических хитбоксов
 void StaticHitBoxesCollisionDetection();
+// инициализаци€ хитбоксов
+void InitHitBoxes();
 
 // √лавна€ функци€, точка входа
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd) {
@@ -391,8 +391,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	StaticHitBoxArray[0] = {
 		0.0f,
 		55.0f,
-		100.0f,
-		5.0f,
+		{100.0f, 0.0f, 5.0f},
 		&staticHitBoxesRotationMatricesArray[0],
 		&invertStaticHitBoxesRotationMatricesArray[0]
 	};
@@ -400,8 +399,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	StaticHitBoxArray[1] = {
 		55.0f,
 		0.0f,
-		5.0f,
-		100.0f,
+		{5.0f, 0.0f, 100.0f},
 		&staticHitBoxesRotationMatricesArray[1],
 		&invertStaticHitBoxesRotationMatricesArray[1]
 	};
@@ -409,8 +407,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	StaticHitBoxArray[2] = {
 		0.0f,
 		-55.0f,
-		100.0f,
-		5.0f,
+		{100.0f, 0.0f, 5.0f},
 		&staticHitBoxesRotationMatricesArray[2],
 		&invertStaticHitBoxesRotationMatricesArray[2]
 	};
@@ -418,8 +415,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	StaticHitBoxArray[3] = {
 		-55.0f,
 		0.0f,
-		5.0f,
-		100.0f,
+		{5.0f, 0.0f, 100.0f},
 		&staticHitBoxesRotationMatricesArray[3],
 		&invertStaticHitBoxesRotationMatricesArray[3]
 	};
@@ -444,10 +440,13 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		&StaticHitBoxAreaArray[2],
 		&StaticHitBoxAreaArray[3],
 		NULL,
-		0.0f,
+		0.0f, // center
 		25.0f,
-		100.0f,
+		-50.0f, //lX hX
 		50.0f,
+		0.0f, // lZ hZ
+		50.0f,
+		2, 
 		0
 	};
 	// 1 область
@@ -455,10 +454,13 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		&StaticHitBoxAreaArray[4],
 		&StaticHitBoxAreaArray[5],
 		NULL,
-		0.0f,
+		0.0f, // center
 		-25.0f,
-		100.0f,
+		-50.0f, //lX hX
 		50.0f,
+		-50.0f, // lZ hZ
+		0.0f,
+		2,
 		1
 	};
 	// 2 область
@@ -466,10 +468,13 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		NULL,
 		(StaticHitBoxArea*)Leaf0Array,
 		&StaticHitBoxAreaArray[0],
-		-25.0f,
+		-25.0f, // center
 		25.0f,
+		-50.0f, //lX hX
+		0.0f,
+		0.0f, // lZ hZ
 		50.0f,
-		50.0f,
+		2,
 		0
 	};
 	// 3 область
@@ -477,10 +482,13 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		NULL,
 		(StaticHitBoxArea*)Leaf1Array,
 		&StaticHitBoxAreaArray[0],
+		25.0f, // center
 		25.0f,
-		25.0f,
+		0.0f, //lX hX
 		50.0f,
+		0.0f, // lZ hZ
 		50.0f,
+		2,
 		1
 	};
 	// 4 область
@@ -488,10 +496,13 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		NULL,
 		(StaticHitBoxArea*)Leaf2Array,
 		&StaticHitBoxAreaArray[1],
+		-25.0f, // center
 		-25.0f,
-		-25.0f,
-		50.0f,
-		50.0f,
+		-50.0f, //lX hX
+		0.0f,
+		-50.0f, // lZ hZ
+		0.0f,
+		2,
 		0
 	};
 	// 5 область
@@ -499,10 +510,13 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		NULL,
 		(StaticHitBoxArea*)Leaf3Array,
 		&StaticHitBoxAreaArray[1],
-		25.0f,
+		25.0f, // center
 		-25.0f,
+		0.0f, //lX hX
 		50.0f,
-		50.0f,
+		-50.0f, // lZ hZ
+		0.0f,
+		2,
 		1
 	};
 	
@@ -1541,6 +1555,10 @@ void StaticHitBoxesCollisionDetection() {
 			XMStoreFloat3(&currentCameraPos, sseProxyRegister0);
 		}
 	}
+};
+
+void InitHitBoxes() {
+
 };
 
 
