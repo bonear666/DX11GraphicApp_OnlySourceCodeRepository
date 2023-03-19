@@ -114,9 +114,9 @@ struct StaticHitBoxArea {
 
 // структура динамических хитбоксов
 struct DynamicHitBox {
-	float shellEdge;
+	float halfOfShellEdge;
 	XMFLOAT3 position;
-	XMFLOAT3 widthHeightLength;
+	XMFLOAT3 halvesOfWidthHeightLength;
 	float angle;
 };
 
@@ -205,6 +205,7 @@ XMVECTOR sseProxyRegister0;
 XMVECTOR sseProxyRegister1;
 XMVECTOR sseProxyRegister2;
 XMVECTOR sseProxyRegister3;
+XMMATRIX sseProxyRegister0_Matrix;
 // переменная, куда кладем произвольные переменные типа XMVECTOR
 XMFLOAT3 xmfloat4Storage0;
 
@@ -270,8 +271,10 @@ void DefineCurrentStaticHtBoxesArea();
 void StaticHitBoxesCollisionDetection();
 // инициализация хитбоксов
 void InitHitBoxes();
-//
-void __fastcall MoveAndRotationDynamicHitBox(FXMVECTOR moveVector, float rotationAngle, DynamicHitBox* dynamicHitBox);
+// смещение и поворот динмаического хитбокса
+void __vectorcall MoveAndRotationDynamicHitBox(FXMVECTOR moveVector, float rotationAngle, DynamicHitBox* dynamicHitBox);
+// проверка на столкновение камеры с динмаическими хитбоксами
+void DynamicHitBoxesCollisionDetection();
 
 // Главная функция, точка входа
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd) {
@@ -1405,10 +1408,11 @@ void InitHitBoxes() {
 	SIZE_T hitBoxAmount = sizeof(extraBytes +
 		STATIC_HIT_BOX_AMOUNT * sizeof(HitBox) +
 		STATIC_HIT_BOX_AREA_AMOUNT * sizeof(StaticHitBoxArea) +
-		STATIC_HIT_BOX_AMOUNT_IN_STATIC_HIT_BOX_AREA_LEAF_0 * sizeof(ArrayOffset8Bit) +
-		STATIC_HIT_BOX_AMOUNT_IN_STATIC_HIT_BOX_AREA_LEAF_1 * sizeof(ArrayOffset8Bit) +
-		STATIC_HIT_BOX_AMOUNT_IN_STATIC_HIT_BOX_AREA_LEAF_2 * sizeof(ArrayOffset8Bit) +
-		STATIC_HIT_BOX_AMOUNT_IN_STATIC_HIT_BOX_AREA_LEAF_3 * sizeof(ArrayOffset8Bit));
+		STATIC_HIT_BOX_AMOUNT_IN_STATIC_HIT_BOX_AREA_LEAF_0 * sizeof(HitBox*) +
+		STATIC_HIT_BOX_AMOUNT_IN_STATIC_HIT_BOX_AREA_LEAF_1 * sizeof(HitBox*) +
+		STATIC_HIT_BOX_AMOUNT_IN_STATIC_HIT_BOX_AREA_LEAF_2 * sizeof(HitBox*) +
+		STATIC_HIT_BOX_AMOUNT_IN_STATIC_HIT_BOX_AREA_LEAF_3 * sizeof(HitBox*) +
+		DYNAMIC_HIT_BOX_AMOUNT * sizeof(DynamicHitBox));
 
 	// количество страниц, необходимое для того чтобы вместить все хитбоксы
 	pageAmount = hitBoxAmount & (0xFFFFFFFF ^ (pageSize - 1)); // сейчас здесь хранится только целая часть от деления hitBoxAmount на pageSize
@@ -1573,26 +1577,61 @@ void InitHitBoxes() {
 		1
 	};
     
-    DynamicHitBoxesArray = Leaf3Array + STATIC_HIT_BOX_AMOUNT_IN_STATIC_HIT_BOX_AREA_LEAF_3;
+	// указатель на массив динмических хитбоксов
+    DynamicHitBoxesArray = (DynamicHitBox*)(Leaf3Array + STATIC_HIT_BOX_AMOUNT_IN_STATIC_HIT_BOX_AREA_LEAF_3);
     
+	//0 динмический хибокс
     DynamicHitBoxesArray[0] = {
         3.0f,
         {-25.0f, 0.0f, 25.0f},
         {2.0f, 0.0f, 2.0f},
         0.0f
     };
+	//1 динмический хибокс
      DynamicHitBoxesArray[1] = {
         3.0f,
         {25.0f, 0.0f, 25.0f},
         {2.0f, 0.0f, 2.0f},
         0.0f
     };
+	 //2 динмический хибокс
      DynamicHitBoxesArray[2] = {
         3.0f,
         {0.0f, 0.0f, -25.0f},
         {2.0f, 0.0f, 2.0f},
         0.0f
     };
+};
+
+void __vectorcall MoveAndRotationDynamicHitBox(FXMVECTOR moveVector, float rotationAngle, DynamicHitBox* dynamicHitBox) {
+	// перемещаем хитбокс
+	sseProxyRegister0 = XMLoadFloat3(&(dynamicHitBox->position));
+	sseProxyRegister0 += moveVector;
+	XMStoreFloat3(&(dynamicHitBox->position), sseProxyRegister0);
+
+	// изменяем угол
+	dynamicHitBox->angle += rotationAngle;
+};
+
+void DynamicHitBoxesCollisionDetection() {
+	sseProxyRegister0 = XMLoadFloat3(&currentCameraPos);
+
+	for (int i = 0; i < 3; ++i) {
+		sseProxyRegister1 = XMLoadFloat3(&DynamicHitBoxesArray[i].position);
+		sseProxyRegister1 = sseProxyRegister0 - sseProxyRegister1;
+		sseProxyRegister2 = XMVectorSet(DynamicHitBoxesArray->halfOfShellEdge, 0.0f, DynamicHitBoxesArray->halfOfShellEdge, 0.0f);
+		sseProxyRegister3 = XMVectorNegate(sseProxyRegister2);
+
+		if (XMVector3LessOrEqual(sseProxyRegister1, sseProxyRegister2) and
+			XMVector3GreaterOrEqual(sseProxyRegister1, sseProxyRegister3)) {
+			sseProxyRegister0_Matrix = XMMatrixRotationY(-DynamicHitBoxesArray[i].angle);
+
+			sseProxyRegister1 = XMVector3Transform(sseProxyRegister1, sseProxyRegister0_Matrix);
+			if () {
+
+			}
+		}
+	}
 };
 
 
