@@ -117,7 +117,7 @@ struct DynamicHitBox {
 	float halfOfShellEdge;
 	XMFLOAT3 position;
 	XMFLOAT3 halvesOfWidthHeightLength;
-	XMFLOAT3 widthHeightLength;
+	//XMFLOAT3 widthHeightLength;
 	float angle;
 };
 
@@ -1634,20 +1634,61 @@ void DynamicHitBoxesCollisionDetection() {
 		if (XMVector3LessOrEqual(sseProxyRegister1, sseProxyRegister2) and
 			XMVector3GreaterOrEqual(sseProxyRegister1, sseProxyRegister3)) 
 		{
+			// поворот позиции камеры
 			sseProxyRegister0_Matrix = XMMatrixRotationY(-DynamicHitBoxesArray[i].angle);
 			sseProxyRegister1 = XMVector3Transform(sseProxyRegister1, sseProxyRegister0_Matrix);
-			// положительные границы хитбокса
+			// координаты позиции камеры относительно системы координат, находящейся в левом нижнем углу хитбокса
 			sseProxyRegister2 = XMLoadFloat3(&DynamicHitBoxesArray[i].halvesOfWidthHeightLength);
-			// отрицательные границы хитбокса
-			sseProxyRegister3 = XMVectorNegate(sseProxyRegister2);
+			sseProxyRegister1 += sseProxyRegister2;
+			// кладем ширину высоту длину хитбокса
+			sseProxyRegister2 *= 2.0f;
+
 			// если камера находится в хитбоксе
 			if (XMVector3LessOrEqual(sseProxyRegister1, sseProxyRegister2) and
-				XMVector3GreaterOrEqual(sseProxyRegister1, sseProxyRegister3))
+				XMVector3GreaterOrEqual(sseProxyRegister1, g_XMIdentityR3))
 			{
 				// находим расстояние позиции камеры до правых верхних граней хитбокса
-				sseProxyRegister4 = sseProxyRegister2 - sseProxyRegister1;
+				sseProxyRegister2 = sseProxyRegister2 - sseProxyRegister1;
 
+				// находим минимум между расстоянием позиции камеры до нижних левых граней хитбокса(это координаты позиции камеры) и 
+				// расстоянием позици камеры до верхних правых граней хитбокса
+				sseProxyRegister3 = XMVectorMin(sseProxyRegister1, sseProxyRegister2);
 
+				float minX = XMVectorGetX(sseProxyRegister3);
+				float minZ = XMVectorGetZ(sseProxyRegister3);
+
+				// если минимальное расстояние до граней находится по оси X
+				if (minX < minZ) {
+					//если минимальное расстояние явлется минимальным расстоянием от точки до левой грани хитбокса
+					if (minX == XMVectorGetX(sseProxyRegister1)) {
+						sseProxyRegister1 = XMVectorSetX(sseProxyRegister1, -0.005f); // 0.0005 это расстояние на которое отодвигается камера от грани хитбокса
+					}
+					else { //если минимальное расстояние явлется минимальным расстоянием от точки до правой грани хитбокса
+						sseProxyRegister2 = XMVectorSetX(sseProxyRegister2, 0.005f);
+						sseProxyRegister3 += sseProxyRegister2;
+						sseProxyRegister1 += XMVectorAndInt(sseProxyRegister3, g_XMMaskX);
+					}
+				}
+				else {// если минимальное расстояние до граней находится по оси Z
+					//если минимальное расстояние явлется минимальным расстоянием от точки до нижней грани хитбокса
+					if (minZ == XMVectorGetZ(sseProxyRegister1)) {
+						sseProxyRegister1 = XMVectorSetZ(sseProxyRegister1, -0.005f);
+					}
+					else { //если минимальное расстояние явлется минимальным расстоянием от точки до верхней грани хитбокса
+						sseProxyRegister2 = XMVectorSetZ(sseProxyRegister2, 0.005f);
+						sseProxyRegister3 += sseProxyRegister2;
+						sseProxyRegister1 += XMVectorAndInt(sseProxyRegister3, g_XMMaskZ);
+					}
+				}
+				// умножить на обратную матрицу
+				sseProxyRegister2 = XMLoadFloat3(&DynamicHitBoxesArray[i].halvesOfWidthHeightLength);
+				sseProxyRegister1 -= sseProxyRegister2;
+				sseProxyRegister0_Matrix = XMMatrixRotationY(DynamicHitBoxesArray[i].angle);
+				sseProxyRegister1 = XMVector3Transform(sseProxyRegister1, sseProxyRegister0_Matrix);
+				sseProxyRegister2 = XMLoadFloat3(&DynamicHitBoxesArray[i].position);
+				sseProxyRegister1 += sseProxyRegister2;
+				// сохранить измененную позицию в currentCameraPosition
+				XMStoreFloat3(&currentCameraPos, sseProxyRegister1);
 			}
 		}
 	}
