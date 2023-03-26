@@ -162,6 +162,7 @@ DWORD pageSize; // размер страницы виртуальной памяти
 DWORD allocationGranularity; // выравнивание адресов в виртуальной памяти
 
 // переменные, относящиеся к хитбоксам
+XMVECTOR halvesOfWidthHeightLengthOfMap = XMVECTORF32{50.0f, 0.0f, 50.0f, 0.0f}; // половины значений глобальной карты
 LPVOID dynamicMemory; // сырая память с учетом байтов для выравнивания
 SIZE_T pageAmount; // количество страниц, необходимое для того чтобы вместить все хитбоксы
 HitBox* StaticHitBoxArray; // указатель на массив статических хитбоксов, выровненный по границе 4 байта
@@ -277,6 +278,8 @@ void InitHitBoxes();
 void __vectorcall MoveAndRotationDynamicHitBox(FXMVECTOR moveVector, float rotationAngle, DynamicHitBox* dynamicHitBox);
 // проверка на столкновение камеры с динмаическими хитбоксами
 void DynamicHitBoxesCollisionDetection();
+//
+float __vectorcall DynamicHitBoxCyclesAmount(FXMVECTOR moveVector, DynamicHitBox* hitBox);
 
 // Главная функция, точка входа
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd) {
@@ -1692,6 +1695,38 @@ void DynamicHitBoxesCollisionDetection() {
 			}
 		}
 	}
+};
+
+float __vectorcall DynamicHitBoxCyclesAmount(FXMVECTOR moveVector, DynamicHitBox* hitBox) {
+	// позиция хитбокса относительно системы координат, находящейся в левом нижнем углу карты
+	sseProxyRegister0 = XMLoadFloat3(&hitBox->position);
+	sseProxyRegister0 -= halvesOfWidthHeightLengthOfMap;
+	
+	// узнаем какие координаты вектора движения отрицательные, и какие положительные
+	sseProxyRegister1 = XMVectorAndInt(moveVector, g_XMNegate3);
+
+	// если X < 0 или X == -0
+	if (XMVectorGetX(sseProxyRegister1) == 0x80000000) {
+		sseProxyRegister2 = XMVectorSetX(sseProxyRegister2, 0.0f);
+	}
+	// если X > 0 или X == +0
+	sseProxyRegister2 = XMVectorSetX(sseProxyRegister2, 100.0f);
+	
+	// если Z < 0 или Z == -0
+	if (XMVectorGetZ(sseProxyRegister1) == 0x80000000) {
+		sseProxyRegister2 = XMVectorSetZ(sseProxyRegister2, 0.0f);
+	}
+	// если Z > 0 или Z == +0
+	sseProxyRegister2 = XMVectorSetZ(sseProxyRegister2, 100.0f);
+
+	// количество moveVector-ов необходимых прибавить к позиции хитбокса, для того
+	// чтобы центр хитбокса вышел за пределы карты
+	sseProxyRegister3 = (sseProxyRegister2 - sseProxyRegister0) / moveVector;
+
+	if (XMVectorGetX(sseProxyRegister3) < XMVectorGetZ(sseProxyRegister3)) {
+		return XMVectorGetX(XMVectorCeiling(sseProxyRegister3));
+	}
+	return XMVectorGetZ(XMVectorCeiling(sseProxyRegister3));
 };
 
 
