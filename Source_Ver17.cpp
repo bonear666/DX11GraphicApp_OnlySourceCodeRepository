@@ -30,6 +30,7 @@
 #define STATIC_HIT_BOX_AMOUNT_IN_STATIC_HIT_BOX_AREA_LEAF_2 2
 #define STATIC_HIT_BOX_AMOUNT_IN_STATIC_HIT_BOX_AREA_LEAF_3 2
 #define DYNAMIC_HIT_BOX_AMOUNT 3
+#define DYNAMIC_HIT_BOX_MOVEVECTOR_LENGTH 0.25f
 
 // ќѕ»—јЌ»≈ —“–” “”–
 
@@ -119,6 +120,7 @@ struct DynamicHitBox {
 	XMFLOAT3 halvesOfWidthHeightLength;
 	//XMFLOAT3 widthHeightLength;
 	float angle;
+	XMVECTOR* moveVectorPtr;
 };
 
 // √ЋќЅјЋ№Ќџ≈ ѕ≈–≈ћ≈ЌЌџ≈
@@ -202,6 +204,8 @@ const XMMATRIX invertStaticHitBoxesRotationMatricesArray[4] = {
 };
 // массив динамических хитбоксов
 DynamicHitBox* DynamicHitBoxesArray;
+// массив векторов движени€ динамических хитбоксов
+XMVECTOR* DynamicHitBoxesMoveVectorsArray;
 // переменна€, куда кладем произвольные переменные типа XMFLOAT4
 XMVECTOR sseProxyRegister0;
 XMVECTOR sseProxyRegister1;
@@ -278,8 +282,10 @@ void InitHitBoxes();
 void __vectorcall MoveAndRotationDynamicHitBox(FXMVECTOR moveVector, float rotationAngle, DynamicHitBox* dynamicHitBox);
 // проверка на столкновение камеры с динмаическими хитбоксами
 void DynamicHitBoxesCollisionDetection();
-//
+// через сколько циклов центр динамического хитбокса выйдет за пределы карты
 float __vectorcall DynamicHitBoxCyclesAmount(FXMVECTOR moveVector, DynamicHitBox* hitBox);
+//
+void CreateNewMoveVectorForDynamicHitBox(DynamicHitBox* hitBox);
 
 // √лавна€ функци€, точка входа
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd) {
@@ -1705,28 +1711,44 @@ float __vectorcall DynamicHitBoxCyclesAmount(FXMVECTOR moveVector, DynamicHitBox
 	// узнаем какие координаты вектора движени€ отрицательные, и какие положительные
 	sseProxyRegister1 = XMVectorAndInt(moveVector, g_XMNegate3);
 
+	float xValue = XMVectorGetX(sseProxyRegister1);
+	float zValue = XMVectorGetZ(sseProxyRegister1);
+
 	// если X < 0 или X == -0
-	if (XMVectorGetX(sseProxyRegister1) == 0x80000000) {
+	if (*((UINT*) &xValue) == 0x80000000) { // пиздец уродство... ну а как по другому, union или reinterpret_cast мб?
 		sseProxyRegister2 = XMVectorSetX(sseProxyRegister2, 0.0f);
 	}
 	// если X > 0 или X == +0
-	sseProxyRegister2 = XMVectorSetX(sseProxyRegister2, 100.0f);
+	sseProxyRegister2 = XMVectorSetX(sseProxyRegister2, 100.0f); // 100 - ширина карты
 	
 	// если Z < 0 или Z == -0
-	if (XMVectorGetZ(sseProxyRegister1) == 0x80000000) {
+	if (*((UINT*) &zValue) == 0x80000000) {
 		sseProxyRegister2 = XMVectorSetZ(sseProxyRegister2, 0.0f);
 	}
 	// если Z > 0 или Z == +0
-	sseProxyRegister2 = XMVectorSetZ(sseProxyRegister2, 100.0f);
+	sseProxyRegister2 = XMVectorSetZ(sseProxyRegister2, 100.0f); // 100 - длина карты
 
 	// количество moveVector-ов необходимых прибавить к позиции хитбокса, дл€ того
 	// чтобы центр хитбокса вышел за пределы карты
+	// причем если кака€ то координата moveVector равна +0 или -0, то мы получим +inf в sseProxyRegister3 на месте этой координаты
+	// это свойство хорошо используетс€ при поиске минимума среди координат sseProxyRegister3
 	sseProxyRegister3 = (sseProxyRegister2 - sseProxyRegister0) / moveVector;
 
+	// поиск минимума среди координат
 	if (XMVectorGetX(sseProxyRegister3) < XMVectorGetZ(sseProxyRegister3)) {
 		return XMVectorGetX(XMVectorCeiling(sseProxyRegister3));
 	}
 	return XMVectorGetZ(XMVectorCeiling(sseProxyRegister3));
+};
+
+void CreateNewMoveVectorForDynamicHitBox(DynamicHitBox* hitBox) {
+	sseProxyRegister0 = XMLoadFloat3(&currentCameraPos);
+	sseProxyRegister1 = XMLoadFloat3(&hitBox->position);
+
+	sseProxyRegister0 -= sseProxyRegister1;
+	sseProxyRegister0 = XMVector3NormalizeEst(sseProxyRegister0);
+	sseProxyRegister0 *= DYNAMIC_HIT_BOX_MOVEVECTOR_LENGTH; 
+	*hitBox->moveVectorPtr = sseProxyRegister0;
 };
 
 
