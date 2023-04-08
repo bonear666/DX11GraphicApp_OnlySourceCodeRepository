@@ -31,6 +31,7 @@
 #define STATIC_HIT_BOX_AMOUNT_IN_STATIC_HIT_BOX_AREA_LEAF_3 2
 #define DYNAMIC_HIT_BOX_AMOUNT 3
 #define DYNAMIC_HIT_BOX_MOVEVECTOR_LENGTH 0.25f
+#define ROTATION_ANGLE 0.00007f
 
 // ОПИСАНИЕ СТРУКТУР
 
@@ -121,6 +122,8 @@ struct DynamicHitBox {
 	//XMFLOAT3 widthHeightLength;
 	float angle;
 	XMVECTOR* moveVectorPtr;
+	float activeCyclesAmount;
+	XMFLOAT3 startPosition
 };
 
 // ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ
@@ -205,7 +208,7 @@ const XMMATRIX invertStaticHitBoxesRotationMatricesArray[4] = {
 // массив динамических хитбоксов
 DynamicHitBox* DynamicHitBoxesArray;
 // массив векторов движения динамических хитбоксов
-XMVECTOR* DynamicHitBoxesMoveVectorsArray;
+XMVECTOR DynamicHitBoxesMoveVectorsArray[3];
 // переменная, куда кладем произвольные переменные типа XMFLOAT4
 XMVECTOR sseProxyRegister0;
 XMVECTOR sseProxyRegister1;
@@ -283,9 +286,11 @@ void __vectorcall MoveAndRotationDynamicHitBox(FXMVECTOR moveVector, float rotat
 // проверка на столкновение камеры с динмаическими хитбоксами
 void DynamicHitBoxesCollisionDetection();
 // через сколько циклов центр динамического хитбокса выйдет за пределы карты
-float __vectorcall DynamicHitBoxCyclesAmount(FXMVECTOR moveVector, DynamicHitBox* hitBox);
-//
+float DynamicHitBoxCyclesAmount(DynamicHitBox* hitBox);
+// создание новго вектора движения динмаического хитбокса
 void CreateNewMoveVectorForDynamicHitBox(DynamicHitBox* hitBox);
+// начальная инициализация векторов движения динамических хитбоксов
+inline void InitMoveVectorsAndActiveCyclesAmountForDynamicHitBoxes();
 
 // Главная функция, точка входа
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd) {
@@ -724,7 +729,7 @@ void UpdateScene() {
 	if (angleCBufferData.angle0 >= XM_2PI) {
 		angleCBufferData.angle0 = angleCBufferData.angle0 - XM_2PI;
 	}
-	angleCBufferData.angle0 += 0.00007f;
+	angleCBufferData.angle0 += ROTATION_ANGLE;
 
 	/*
 	D3D11_MAPPED_SUBRESOURCE angleCBufferUpdateData;
@@ -742,6 +747,20 @@ void UpdateScene() {
 	//matricesWVP.mRotationAroundAxis = XMMatrixTranspose(matricesWVP.mRotationAroundAxis);
 
 	matricesWVP.mRotationAroundAxis = XMMatrixTranspose(XMMatrixRotationAxis(g_XMIdentityR1, angleCBufferData.angle0));
+
+	for (int i = 0; i < DYNAMIC_HIT_BOX_AMOUNT; ++i) {
+		if (DynamicHitBoxesArray[i].activeCyclesAmount == 0.0f) {
+			DynamicHitBoxesArray[i].position = DynamicHitBoxesArray[i].startPosition;
+			CreateNewMoveVectorForDynamicHitBox(&DynamicHitBoxesArray[i]);
+			DynamicHitBoxesArray[i].activeCyclesAmount = DynamicHitBoxCyclesAmount(&DynamicHitBoxesArray[i]);
+			if (DynamicHitBoxesArray[i].angle >= XM_2PI) {
+				DynamicHitBoxesArray[i].activeCyclesAmount -= XM_2PI;
+			}
+			DynamicHitBoxesArray[i].activeCyclesAmount += ROTATION_ANGLE;
+		}
+
+
+	}
 };
 
 void DrawScene(XMVECTOR* objectsPositionsArray) {
@@ -1596,22 +1615,28 @@ void InitHitBoxes() {
         3.0f,
         {-25.0f, 0.0f, 25.0f},
         {2.0f, 0.0f, 2.0f},
-        0.0f
+        0.0f,
+		&DynamicHitBoxesMoveVectorsArray[0]
     };
 	//1 динмический хибокс
      DynamicHitBoxesArray[1] = {
         3.0f,
         {25.0f, 0.0f, 25.0f},
         {2.0f, 0.0f, 2.0f},
-        0.0f
+        0.0f,
+		&DynamicHitBoxesMoveVectorsArray[1]
     };
 	 //2 динмический хибокс
      DynamicHitBoxesArray[2] = {
         3.0f,
         {0.0f, 0.0f, -25.0f},
         {2.0f, 0.0f, 2.0f},
-        0.0f
+        0.0f,
+		&DynamicHitBoxesMoveVectorsArray[2]
     };
+
+	 //инициализация векторов движения динамических хитбоксов
+	 InitMoveVectorsAndActiveCyclesAmountForDynamicHitBoxes();
 };
 
 void __vectorcall MoveAndRotationDynamicHitBox(FXMVECTOR moveVector, float rotationAngle, DynamicHitBox* dynamicHitBox) {
@@ -1703,13 +1728,13 @@ void DynamicHitBoxesCollisionDetection() {
 	}
 };
 
-float __vectorcall DynamicHitBoxCyclesAmount(FXMVECTOR moveVector, DynamicHitBox* hitBox) {
+float DynamicHitBoxCyclesAmount(DynamicHitBox* hitBox) {
 	// позиция хитбокса относительно системы координат, находящейся в левом нижнем углу карты
 	sseProxyRegister0 = XMLoadFloat3(&hitBox->position);
 	sseProxyRegister0 -= halvesOfWidthHeightLengthOfMap;
 	
 	// узнаем какие координаты вектора движения отрицательные, и какие положительные
-	sseProxyRegister1 = XMVectorAndInt(moveVector, g_XMNegate3);
+	sseProxyRegister1 = XMVectorAndInt(*hitBox->moveVectorPtr, g_XMNegate3);
 
 	float xValue = XMVectorGetX(sseProxyRegister1);
 	float zValue = XMVectorGetZ(sseProxyRegister1);
@@ -1732,7 +1757,7 @@ float __vectorcall DynamicHitBoxCyclesAmount(FXMVECTOR moveVector, DynamicHitBox
 	// чтобы центр хитбокса вышел за пределы карты
 	// причем если какая то координата moveVector равна +0 или -0, то мы получим +inf в sseProxyRegister3 на месте этой координаты
 	// это свойство хорошо используется при поиске минимума среди координат sseProxyRegister3
-	sseProxyRegister3 = (sseProxyRegister2 - sseProxyRegister0) / moveVector;
+	sseProxyRegister3 = (sseProxyRegister2 - sseProxyRegister0) / (*hitBox->moveVectorPtr);
 
 	// поиск минимума среди координат
 	if (XMVectorGetX(sseProxyRegister3) < XMVectorGetZ(sseProxyRegister3)) {
@@ -1742,13 +1767,23 @@ float __vectorcall DynamicHitBoxCyclesAmount(FXMVECTOR moveVector, DynamicHitBox
 };
 
 void CreateNewMoveVectorForDynamicHitBox(DynamicHitBox* hitBox) {
+	// кладем текущую позицию камеры
 	sseProxyRegister0 = XMLoadFloat3(&currentCameraPos);
+	// позиция хитбокса
 	sseProxyRegister1 = XMLoadFloat3(&hitBox->position);
 
+	// находим вектор
 	sseProxyRegister0 -= sseProxyRegister1;
 	sseProxyRegister0 = XMVector3NormalizeEst(sseProxyRegister0);
 	sseProxyRegister0 *= DYNAMIC_HIT_BOX_MOVEVECTOR_LENGTH; 
 	*hitBox->moveVectorPtr = sseProxyRegister0;
+};
+
+inline void InitMoveVectorsAndActiveCyclesAmountForDynamicHitBoxes() {
+	for (int i = 0; i < DYNAMIC_HIT_BOX_AMOUNT; ++i) {
+		CreateNewMoveVectorForDynamicHitBox(&DynamicHitBoxesArray[i]);
+		DynamicHitBoxesArray[i].activeCyclesAmount = DynamicHitBoxCyclesAmount(&DynamicHitBoxesArray[i]);
+	}
 };
 
 
