@@ -119,11 +119,10 @@ struct DynamicHitBox {
 	float halfOfShellEdge;
 	XMFLOAT3 position;
 	XMFLOAT3 halvesOfWidthHeightLength;
-	//XMFLOAT3 widthHeightLength;
 	float angle;
 	XMVECTOR* moveVectorPtr;
 	float activeCyclesAmount;
-	XMFLOAT3 startPosition
+	XMFLOAT3 startPosition;
 };
 
 // √ЋќЅјЋ№Ќџ≈ ѕ≈–≈ћ≈ЌЌџ≈
@@ -282,7 +281,7 @@ void StaticHitBoxesCollisionDetection();
 // инициализаци€ хитбоксов
 void InitHitBoxes();
 // смещение и поворот динмаического хитбокса
-void __vectorcall MoveAndRotationDynamicHitBox(FXMVECTOR moveVector, float rotationAngle, DynamicHitBox* dynamicHitBox);
+inline void __vectorcall MoveAndRotationDynamicHitBox(FXMVECTOR moveVector, float rotationAngle, DynamicHitBox* dynamicHitBox);
 // проверка на столкновение камеры с динмаическими хитбоксами
 void DynamicHitBoxesCollisionDetection();
 // через сколько циклов центр динамического хитбокса выйдет за пределы карты
@@ -379,6 +378,13 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		}
 		UpdateScene();
 		DrawScene(objectsPositions);
+		// проверка на столкновение камеры с статическими и динамическими хитбоксами
+		// если камера перешла в другую область статических хитбоксов
+		if (ChangesOfStaticHtBoxesArea) {
+			DefineCurrentStaticHtBoxesArea();
+		}
+		StaticHitBoxesCollisionDetection();
+		DynamicHitBoxesCollisionDetection();
 	}
 	// окночание работы приложени€
 	ReleaseObjects();
@@ -467,6 +473,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 
 		UpdateScene();
 		DrawScene(objectsPositions);
+		// проверка на столкновение камеры с статическими и динамическими хитбоксами
+		// если камера перешла в другую область статических хитбоксов
+		if (ChangesOfStaticHtBoxesArea) {
+			DefineCurrentStaticHtBoxesArea();
+		}
+		StaticHitBoxesCollisionDetection();
+		DynamicHitBoxesCollisionDetection();
 		break; 
 	}
 
@@ -727,7 +740,7 @@ HRESULT MyCreateWindow(CONST WCHAR* wndClassNameParam, CONST WCHAR* wndNameParam
 void UpdateScene() {
 	// обновление угла поворота
 	if (angleCBufferData.angle0 >= XM_2PI) {
-		angleCBufferData.angle0 = angleCBufferData.angle0 - XM_2PI;
+		angleCBufferData.angle0 = angleCBufferData.angle0 - XM_2PI + ROTATION_ANGLE;
 	}
 	angleCBufferData.angle0 += ROTATION_ANGLE;
 
@@ -746,20 +759,29 @@ void UpdateScene() {
 	//RotationAroundAxis(g_XMIdentityR1, g_XMZero, angleCBufferData.angle0, &matricesWVP.mRotationAroundAxis);
 	//matricesWVP.mRotationAroundAxis = XMMatrixTranspose(matricesWVP.mRotationAroundAxis);
 
+	// обновление матрицы поворота вокруг оси
 	matricesWVP.mRotationAroundAxis = XMMatrixTranspose(XMMatrixRotationAxis(g_XMIdentityR1, angleCBufferData.angle0));
 
+	//изменение динамических хитбоксов
 	for (int i = 0; i < DYNAMIC_HIT_BOX_AMOUNT; ++i) {
+		// если хитбокс вышел за пределы карты
 		if (DynamicHitBoxesArray[i].activeCyclesAmount == 0.0f) {
+			//возвращаем хитбокс в точку его спавна
 			DynamicHitBoxesArray[i].position = DynamicHitBoxesArray[i].startPosition;
+			//новый вектор движени€
 			CreateNewMoveVectorForDynamicHitBox(&DynamicHitBoxesArray[i]);
+			//через сколько циклов хитбокс снова покинет карту
 			DynamicHitBoxesArray[i].activeCyclesAmount = DynamicHitBoxCyclesAmount(&DynamicHitBoxesArray[i]);
+			// поворот хитбокса
 			if (DynamicHitBoxesArray[i].angle >= XM_2PI) {
-				DynamicHitBoxesArray[i].activeCyclesAmount -= XM_2PI;
+				DynamicHitBoxesArray[i].activeCyclesAmount += -XM_2PI + ROTATION_ANGLE;
 			}
 			DynamicHitBoxesArray[i].activeCyclesAmount += ROTATION_ANGLE;
 		}
-
-
+		else {
+			MoveAndRotationDynamicHitBox(*DynamicHitBoxesArray[i].moveVectorPtr, ROTATION_ANGLE, &DynamicHitBoxesArray[i]);
+			--DynamicHitBoxesArray[i].activeCyclesAmount;
+		}
 	}
 };
 
@@ -1639,13 +1661,16 @@ void InitHitBoxes() {
 	 InitMoveVectorsAndActiveCyclesAmountForDynamicHitBoxes();
 };
 
-void __vectorcall MoveAndRotationDynamicHitBox(FXMVECTOR moveVector, float rotationAngle, DynamicHitBox* dynamicHitBox) {
+inline void __vectorcall MoveAndRotationDynamicHitBox(FXMVECTOR moveVector, float rotationAngle, DynamicHitBox* dynamicHitBox) {
 	// перемещаем хитбокс
 	sseProxyRegister0 = XMLoadFloat3(&(dynamicHitBox->position));
 	sseProxyRegister0 += moveVector;
 	XMStoreFloat3(&(dynamicHitBox->position), sseProxyRegister0);
 
 	// измен€ем угол
+	if(dynamicHitBox->angle >= XM_2PI){
+		dynamicHitBox->angle += -XM_2PI + rotationAngle;
+	}
 	dynamicHitBox->angle += rotationAngle;
 };
 
