@@ -122,7 +122,7 @@ struct DynamicHitBox {
 	float angle;
 	XMVECTOR* moveVectorPtr;
 	float activeCyclesAmount;
-	XMFLOAT3 startPosition;
+	XMFLOAT3 startPosition; // куда возвращатьс€, когда хитбокс вышел за пределы карты
 };
 
 // √ЋќЅјЋ№Ќџ≈ ѕ≈–≈ћ≈ЌЌџ≈
@@ -153,9 +153,9 @@ ID3D11DepthStencilState* pDSState = NULL; // состо€ние depth-stencil теста
 ID3D11RasterizerState* pRasterizerState = NULL; // состо€ние растеризатора 
 MatricesBuffer matricesWVP; // матрицы
 XMVECTOR objectsPositions[] = { //массив точек, в которых располагаютс€ объекты.  оординаты точек должны быть деленными на W координату
-	XMVectorSet(-0.75f, 0.0f, 0.50f, 0.0f),
-	XMVectorSet(0.75f, 0.0125f, 0.75f, 0.0f),
-	XMVectorSet(0.75f, 0.005f, 0.25f, 0.0f)
+	XMVECTORF32{-0.25f, 0.0f, 0.25f, 0.0f},
+	XMVECTORF32{0.25f, 0.0f, 0.25f, 0.0f},
+	XMVECTORF32{0.0f, 0.0f, 0.25f, 0.0f}
 };
 XMMATRIX moveAheadMatrix = XMMatrixTranspose(XMMatrixTranslation(0.0f, 0.0f, 0.4f)); // матрица движени€ вперед
 XMVECTOR moveAheadVector = XMVectorSet(0.0f, 0.0f, -0.1f, 0.0f); // вектор движени€ в положительном направлении оси
@@ -310,10 +310,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 	// массив вершин (пирамида)
 	Vertex* vertexArray = new Vertex[4]{
-		Vertex{XMFLOAT4{0.0f, 6.0f, -2.5f, 100.0f}, XMFLOAT4{1.0f, 0.0f, 0.0f, 1.0f}}, // a 0
-		Vertex{XMFLOAT4{2.5f, 0.0f, -2.5f, 100.0f}, XMFLOAT4{1.0f, 1.0f, 0.0f, 1.0f}}, //b 1
-		Vertex{XMFLOAT4{0.0f, 0.0f, 2.5f, 100.0f}, XMFLOAT4{0.0f, 0.0f, 0.0f, 1.0f}}, //c 2
-		Vertex{XMFLOAT4{-2.5f, 0.0f, -2.5f, 100.0f}, XMFLOAT4{1.0f, 0.0f, 1.0f, 1.0f}} //d 3
+		Vertex{XMFLOAT4{-2.0f, -2.0f, 2.0f, 100.0f}, XMFLOAT4{1.0f, 0.0f, 0.0f, 1.0f}}, // a 0
+		Vertex{XMFLOAT4{2.0f, -2.0f, 2.0f, 100.0f}, XMFLOAT4{1.0f, 1.0f, 0.0f, 1.0f}}, //b 1
+		Vertex{XMFLOAT4{0.0f, -2.0f, -2.0f, 100.0f}, XMFLOAT4{0.0f, 0.0f, 0.0f, 1.0f}}, //c 2
+		Vertex{XMFLOAT4{0.0f, 4.0f, 0.0f, 100.0f}, XMFLOAT4{1.0f, 0.0f, 1.0f, 1.0f}} //d 3 вершина пирамиды
 	};
 
 	// создание буфера вершин, компил€ци€ шейдеров, св€зывание шейдеров и буфера вершин с конвейером
@@ -378,6 +378,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		}
 		UpdateScene();
 		DrawScene(objectsPositions);
+
 		// проверка на столкновение камеры с статическими и динамическими хитбоксами
 		// если камера перешла в другую область статических хитбоксов
 		if (ChangesOfStaticHtBoxesArea) {
@@ -470,7 +471,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 			matricesWVP.mView = XMMatrixTranspose(matricesWVP.mView);
 			*/
 		}
-
+		/*
 		UpdateScene();
 		DrawScene(objectsPositions);
 		// проверка на столкновение камеры с статическими и динамическими хитбоксами
@@ -479,7 +480,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 			DefineCurrentStaticHtBoxesArea();
 		}
 		StaticHitBoxesCollisionDetection();
-		DynamicHitBoxesCollisionDetection();
+		DynamicHitBoxesCollisionDetection();*/
 		break; 
 	}
 
@@ -499,6 +500,16 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 	default:
 		return DefWindowProc(hWnd, message, wParam, lParam);
 	}
+
+	UpdateScene();
+	DrawScene(objectsPositions);
+	// проверка на столкновение камеры с статическими и динамическими хитбоксами
+	// если камера перешла в другую область статических хитбоксов
+	if (ChangesOfStaticHtBoxesArea) {
+		DefineCurrentStaticHtBoxesArea();
+	}
+	StaticHitBoxesCollisionDetection();
+	DynamicHitBoxesCollisionDetection();
 
 	return 0;
 };
@@ -738,7 +749,7 @@ HRESULT MyCreateWindow(CONST WCHAR* wndClassNameParam, CONST WCHAR* wndNameParam
 };
 
 void UpdateScene() {
-	// обновление угла поворота
+	// обновление угла поворота пирамиды
 	if (angleCBufferData.angle0 >= XM_2PI) {
 		angleCBufferData.angle0 = angleCBufferData.angle0 - XM_2PI + ROTATION_ANGLE;
 	}
@@ -777,10 +788,14 @@ void UpdateScene() {
 				DynamicHitBoxesArray[i].activeCyclesAmount += -XM_2PI + ROTATION_ANGLE;
 			}
 			DynamicHitBoxesArray[i].activeCyclesAmount += ROTATION_ANGLE;
+			//изме€ем позицию пирамиды
+			objectsPositions[i] = XMLoadFloat3(&DynamicHitBoxesArray[i].startPosition);
 		}
 		else {
 			MoveAndRotationDynamicHitBox(*DynamicHitBoxesArray[i].moveVectorPtr, ROTATION_ANGLE, &DynamicHitBoxesArray[i]);
 			--DynamicHitBoxesArray[i].activeCyclesAmount;
+			//изме€ем позицию пирамиды
+			objectsPositions[i] = XMLoadFloat3(&DynamicHitBoxesArray[i].position);
 		}
 	}
 };
@@ -795,13 +810,13 @@ void DrawScene(XMVECTOR* objectsPositionsArray) {
 	// оччистка depth-stencil буфера
 	g_pImmediateContext->ClearDepthStencilView(g_pDepthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
 
+	//отрисовка каждой пирамиды
 	for (int i = 0; i < 3; ++i) {
 		SetWorldMatrix(objectsPositionsArray[i], XMVectorSet(1.0f, 1.0f, 1.0f, 0.0f), &matricesWVP.mWorld);
 		g_pImmediateContext->UpdateSubresource(constantBufferArray[0], 0, NULL, &matricesWVP, 0, 0);
 
 		g_pImmediateContext->DrawIndexed(12, 0, 0);
 	}
-
 	// отрисовка примитивов 
 	//g_pImmediateContext->DrawIndexed(12, 0, 0);
 
