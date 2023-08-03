@@ -8,12 +8,14 @@
 #include <D3D11.h>
 #include <D3D10.h>
 #include <DXGI.h>
-#include <D3DX10math.h>
-#include <xnamath.h>
+#include <DirectXMath.h>
+//#include <xnamath.h>
 #include <d3dcompiler.h>
 #include <iostream>
 #include <cmath>
 #include <hidusage.h>
+
+using namespace DirectX;
 
 // начальные количества структур 
 #define STATIC_HIT_BOX_AMOUNT 20
@@ -158,9 +160,11 @@ XMVECTOR objectsPositions[] = { //массив точек, в которых располагаютс€ объекты.
 	XMVECTORF32{0.0f, 0.0f, 0.25f, 0.0f}
 };
 XMMATRIX moveAheadMatrix = XMMatrixTranspose(XMMatrixTranslation(0.0f, 0.0f, 0.4f)); // матрица движени€ вперед
-XMVECTOR moveAheadVector = XMVectorSet(0.0f, 0.0f, -0.1f, 0.0f); // вектор движени€ в положительном направлении оси
+XMVECTOR moveAheadVector = XMVectorSet(0.0f, 0.0f, -0.1f, 0.0f); // вектор движени€ в положительном направлении оси(в системе координат камеры)
+XMVECTOR moveAheadVectorInGlobalCoord = XMVECTORF32{ 0.0f, 0.0f, 0.1f, 0.0f }; // вектор движени€ в положительном направлении оси(в глобальной системе координат)
 XMVECTOR moveBackVector = XMVectorSet(0.0f, 0.0f, 0.1f, 0.0f); // вектор движени€ в отрицательном направлении оси
 XMVECTOR moveRightVector = XMVectorSet(0.0f, 0.0f, 0.0f, -0.1f);
+XMVECTOR moveRightVectorInGlobalCoord = XMVECTORF32{ 0.1f, 0.0f, 0.0f, 0.0f }; 
 XMVECTOR moveLeftVector = XMVectorSet(0.0f, 0.0f, 0.0f, 0.1f);
 DWORD pageSize; // размер страницы виртуальной пам€ти
 DWORD allocationGranularity; // выравнивание адресов в виртуальной пам€ти
@@ -217,6 +221,7 @@ XMVECTOR sseProxyRegister4;
 XMMATRIX sseProxyRegister0_Matrix;
 // переменна€, куда кладем произвольные переменные типа XMVECTOR
 XMFLOAT3 xmfloat4Storage0;
+
 
 
 //ѕ–≈ƒ¬ј–»“≈Ћ№Ќџ≈ ќЅЏя¬Ћ≈Ќ»я ‘”Ќ ÷»…
@@ -413,24 +418,39 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 
 			switch (pressedKey) {
 			case(0x57): {// W
+				// можно было бы просто прибавить moveAheadVector к последней строчке view matrix, но эта матрица уже транспонирована, поэтому так сделать не получитс€ 
 				matricesWVP.mView = XMMatrixTranspose(XMMatrixTranslationFromVector(moveAheadVector)) * matricesWVP.mView;
-				//matricesWVP.mView.r[2] = matricesWVP.mView.r[2] + moveAheadVector;
+				//бл€€€ зачем € решил хранить позицию камеры в xmfloat3, нужно было в xmvector
+				sseProxyRegister0 = XMLoadFloat3(&currentCameraPos); 
+				sseProxyRegister0 += moveAheadVectorInGlobalCoord;
+				XMStoreFloat3(&currentCameraPos, sseProxyRegister0);
 				break;
 			}
 			
 			case(0x53): { // S
 				matricesWVP.mView = XMMatrixTranspose(XMMatrixTranslationFromVector(moveBackVector)) * matricesWVP.mView;
-				//matricesWVP.mView.r[2] = matricesWVP.mView.r[2] + moveBackVector;
+
+				sseProxyRegister0 = XMLoadFloat3(&currentCameraPos);
+				sseProxyRegister0 -= moveAheadVectorInGlobalCoord;
+				XMStoreFloat3(&currentCameraPos, sseProxyRegister0);
 				break;
 			}
 
 			case(0x44): { // D
 				matricesWVP.mView.r[0] = matricesWVP.mView.r[0] + moveRightVector;
+
+				sseProxyRegister0 = XMLoadFloat3(&currentCameraPos);
+				sseProxyRegister0 += moveRightVectorInGlobalCoord;
+				XMStoreFloat3(&currentCameraPos, sseProxyRegister0);
 				break;
 			}
 
 			case(0x41): { // A
 				matricesWVP.mView.r[0] = matricesWVP.mView.r[0] + moveLeftVector;
+
+				sseProxyRegister0 = XMLoadFloat3(&currentCameraPos);
+				sseProxyRegister0 -= moveRightVectorInGlobalCoord;
+				XMStoreFloat3(&currentCameraPos, sseProxyRegister0);
 				break;
 			}
 
@@ -470,6 +490,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 			matricesWVP.mView = XMMatrixLookToLH(cameraPositionInWorldSpace, cameraZCoordinateInWorldSpace, cameraYCoordinateInWorldSpace);
 			matricesWVP.mView = XMMatrixTranspose(matricesWVP.mView);
 			*/
+
+			//изменение moveAheadVector в глобальной системе координат
+			sseProxyRegister0_Matrix = XMMatrixRotationY(XM_PI * 0.0005 * mouseX);
+			moveAheadVectorInGlobalCoord = XMVector3Transform(moveAheadVectorInGlobalCoord, sseProxyRegister0_Matrix);
+			//изменение moveRightVector в глобальной системе координат
+			moveRightVectorInGlobalCoord = XMVector3Transform(moveRightVectorInGlobalCoord, sseProxyRegister0_Matrix);
 		}
 		/*
 		UpdateScene();
@@ -1364,11 +1390,11 @@ bool ChangesOfStaticHtBoxesArea() {
 	if ((currentCameraPos.x >= currentHitBoxArea->lowX) and
 		(currentCameraPos.x <= currentHitBoxArea->highX) and
 		(currentCameraPos.z >= currentHitBoxArea->lowZ) and
-		(currentCameraPos.z <= currentHitBoxArea->highZ)) 
+		(currentCameraPos.z <= currentHitBoxArea->highZ))
 	{
 		return false;
 	}
-	return true;
+		return true;
 };
 
 void DefineCurrentStaticHtBoxesArea() {
@@ -1382,7 +1408,9 @@ void DefineCurrentStaticHtBoxesArea() {
 	{
 		currentHitBoxArea = &StaticHitBoxAreaArray[0];
 	}
-	currentHitBoxArea = &StaticHitBoxAreaArray[1];
+	else {
+		currentHitBoxArea = &StaticHitBoxAreaArray[1];
+	}
 
 	// пока не дошли до листа продолжаем определ€ть в какой области находитс€ камера
 	while (currentHitBoxArea->leftNode != NULL) {
@@ -1394,7 +1422,9 @@ void DefineCurrentStaticHtBoxesArea() {
 		{
 			currentHitBoxArea = currentHitBoxArea->leftNode;
 		}
-		currentHitBoxArea = currentHitBoxArea->rightNode;
+		else {
+			currentHitBoxArea = currentHitBoxArea->rightNode;
+		}
 	}
 };
 
@@ -1452,6 +1482,12 @@ void StaticHitBoxesCollisionDetection() {
 			sseProxyRegister0 = XMVector3Transform(sseProxyRegister0, *(currentHitBoxArea->staticHitBoxesArray[i]->invertAngleMatrixRotation));
 			// сохранить измененную позицию в currentCameraPosition
 			XMStoreFloat3(&currentCameraPos, sseProxyRegister0);
+
+			//мен€ем view matrix, так чтобы она описывала систему координат в новой, смещенной точке
+			//находим координаты новой позиции в текущей системе координат камеры
+			sseProxyRegister0 = XMVector3Transform(sseProxyRegister0, matricesWVP.mView);
+			//переносим систему координат камеры в новую точку
+			matricesWVP.mView.r[3] -= sseProxyRegister0;
 		}
 	}
 };
@@ -1763,6 +1799,12 @@ void DynamicHitBoxesCollisionDetection() {
 				sseProxyRegister1 += sseProxyRegister2;
 				// сохранить измененную позицию в currentCameraPosition
 				XMStoreFloat3(&currentCameraPos, sseProxyRegister1);
+
+				//мен€ем view matrix, так чтобы она описывала систему координат в новой, смещенной точке
+				//находим координаты новой позиции в текущей системе координат камеры
+				sseProxyRegister1 = XMVector3Transform(sseProxyRegister1, matricesWVP.mView);
+				//переносим систему координат камеры в новую точку
+				matricesWVP.mView.r[3] -= sseProxyRegister1;
 			}
 		}
 	}
@@ -1828,7 +1870,9 @@ inline void InitMoveVectorsAndActiveCyclesAmountForDynamicHitBoxes() {
 
 
 void ReleaseObjects() {
-	//virtualFree
+	if (dynamicMemory != NULL) {
+		VirtualFree(dynamicMemory, 0, MEM_RELEASE);
+	}
 	if (pIndexBuffer != NULL) {
 		pIndexBuffer->Release();
 		pIndexBuffer = NULL;
