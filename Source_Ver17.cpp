@@ -580,7 +580,7 @@ HRESULT CreateDirect3DComponents(UINT widthParam, UINT heightParam) {
 	// Вывод происходит в windowed mode или full-screen mode
 	sd.Windowed = TRUE;
 	// Что должен делать драйвер после того, как front buffer стал back buffer-ом
-	sd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
+	sd.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
 	// Дополнительные параметры Swap Chain-а
 	sd.Flags = NULL;
 
@@ -848,6 +848,8 @@ void DrawScene(XMVECTOR* objectsPositionsArray) {
 
 	// Вывод на дисплей поверхности Back Buffer
 	g_pSwapChain->Present(0, 0);
+
+	g_pImmediateContext->OMSetRenderTargets(1, &g_pRenderTargetView, g_pDepthStencilView);
 };
 
 HRESULT CompileShader(LPCWSTR srcName, LPCSTR entryPoint, LPCSTR target, ID3DBlob** buffer) {
