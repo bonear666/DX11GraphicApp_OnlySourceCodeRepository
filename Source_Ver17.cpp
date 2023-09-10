@@ -131,6 +131,7 @@ struct DynamicHitBox {
 
 HINSTANCE               g_hInst = NULL; //указатель на struct, дескриптор(handle) данного приложения.
 HWND                    g_hWnd = NULL; //указатель на struct, дескриптор(handle) окна данного приложения.
+LONG StartUpWndProcPtr = NULL; // указатель на дефолтную оконную процедуру
 D3D_DRIVER_TYPE         g_driverType = D3D_DRIVER_TYPE_NULL; //целочисленная константа. Переменная, обозначающая Тип драйвера, определяет, где производить вычисления.
 D3D_FEATURE_LEVEL       g_featureLevel = D3D_FEATURE_LEVEL_9_1; //используемый feature level, точнее, это переменная, которая будет хранить самый высокий feature level, доступный на заданном адаптере.
 ID3D11Device* g_pd3dDevice = NULL; //указатель на struct(Объект Интерфейса ID3D11Device). ID3D11Device это COM-интерфейс, который создает ресурсы(текстуры, трехмерные объекты и т.д.) для вывода на дисплей.
@@ -223,7 +224,6 @@ XMMATRIX sseProxyRegister0_Matrix;
 XMFLOAT3 xmfloat4Storage0;
 
 
-
 //ПРЕДВАРИТЕЛЬНЫЕ ОБЪЯВЛЕНИЯ ФУНКЦИЙ
 
 // Функция окна
@@ -295,6 +295,9 @@ float DynamicHitBoxCyclesAmount(DynamicHitBox* hitBox);
 void CreateNewMoveVectorForDynamicHitBox(DynamicHitBox* hitBox);
 // начальная инициализация векторов движения динамических хитбоксов
 inline void InitMoveVectorsAndActiveCyclesAmountForDynamicHitBoxes();
+// оконная процедура, которая обрабатывает все сообщения по дефолту
+LRESULT CALLBACK StartUpWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
+
 
 // Главная функция, точка входа
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd) {
@@ -312,6 +315,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	if (FAILED(hr)) {
 		return hr;
 	}
+
+	// прикрепляем к окну процедуру, которая будет обрабатывать нажатия клавиш и т.д.
+	StartUpWndProcPtr = SetWindowLong(g_hWnd, GWLP_WNDPROC, (LONG)WndProc);
 
 	// массив вершин (пирамида)
 	Vertex* vertexArray = new Vertex[4]{
@@ -334,10 +340,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	// индексы вершин
 	// обход по часовой стрелеке относительно нормали к поверхности, которую нужно показать
 	WORD indices[] = { 
-		0, 1, 2, //abс видимая грань (обход по часовой стрелке)
-		0, 2, 3, //aсd видимая грань (обход по часовой стрелке)
-		3, 2, 1, //dcb невидимая грань (обход против часовой стрелки)
-		0, 3, 1 //adb  невидимая грань (обход против часовой стрелки)
+		3, 0, 1, //abс видимая грань (обход по часовой стрелке)
+		3, 1, 2, //aсd видимая грань (обход по часовой стрелке)
+		3, 2, 0, //dcb невидимая грань (обход против часовой стрелки)
+		2, 1, 0 //adb  невидимая грань (обход против часовой стрелки)
 	};
 
 	InvertIndices(indices, 12);
@@ -397,9 +403,13 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	return 0;
 };
 
+LRESULT CALLBACK StartUpWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
+	return DefWindowProc(hWnd, message, wParam, lParam);
+};
+
+
 // функция-обработчик сообщений, поступающих окну
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
-
 	// структура, содержащая необходимую информацию для рисования в клентской части окна
 	PAINTSTRUCT ps;
 	// указатель на дескриптор(или просто дескриптор) Device Context
@@ -523,8 +533,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 		PostQuitMessage(0);
 		break;
 	}
+	case(WM_NULL): {
+		goto doNothing;
+	}
 	default:
-		return DefWindowProc(hWnd, message, wParam, lParam);
+		DefWindowProc(hWnd, message, wParam, lParam);
 	}
 
 	UpdateScene();
@@ -537,6 +550,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 	StaticHitBoxesCollisionDetection();
 	DynamicHitBoxesCollisionDetection();
 
+doNothing:
 	return 0;
 };
 
@@ -723,7 +737,7 @@ HRESULT MyCreateWindow(CONST WCHAR* wndClassNameParam, CONST WCHAR* wndNameParam
 	// Стиль класса окна
 	wndClass.style = CS_HREDRAW | CS_VREDRAW;
 	// Указатель на функцию, обрабатывающую сообщения, поступающие окну
-	wndClass.lpfnWndProc = (WNDPROC)WndProc;
+	wndClass.lpfnWndProc = StartUpWndProc;
 	// Количество дополнительных байтов для структуры wndClass
 	wndClass.cbClsExtra = NULL;
 	// Количество дополнительных байтов для экземпляра окна
@@ -1537,7 +1551,7 @@ void InitHitBoxes() {
 	// указатель на массив статических хитбоксов, выровненный по границе 4 байта
 	StaticHitBoxArray = (HitBox*)((BYTE*)dynamicMemory + extraBytes);
 	// указатель на массив StaticHitBoxArea структур
-	StaticHitBoxArea* StaticHitBoxAreaArray = (StaticHitBoxArea*)(StaticHitBoxArray + STATIC_HIT_BOX_AMOUNT);
+	StaticHitBoxAreaArray = (StaticHitBoxArea*)(StaticHitBoxArray + STATIC_HIT_BOX_AMOUNT);
 	// указатели на массивы позиций в StaticHitBoxDescArray, которые определяют какие статические хитбоксы есть в листьях staticHitBoxArea
 	// 0 лист
 	Leaf0Array = (HitBox**)(StaticHitBoxAreaArray + STATIC_HIT_BOX_AREA_AMOUNT);
@@ -1869,7 +1883,6 @@ inline void InitMoveVectorsAndActiveCyclesAmountForDynamicHitBoxes() {
 		DynamicHitBoxesArray[i].activeCyclesAmount = DynamicHitBoxCyclesAmount(&DynamicHitBoxesArray[i]);
 	}
 };
-
 
 void ReleaseObjects() {
 	if (dynamicMemory != NULL) {
