@@ -32,7 +32,7 @@ using namespace DirectX;
 #define STATIC_HIT_BOX_AMOUNT_IN_STATIC_HIT_BOX_AREA_LEAF_2 2
 #define STATIC_HIT_BOX_AMOUNT_IN_STATIC_HIT_BOX_AREA_LEAF_3 2
 #define DYNAMIC_HIT_BOX_AMOUNT 3
-#define DYNAMIC_HIT_BOX_MOVEVECTOR_LENGTH 0.25f
+#define DYNAMIC_HIT_BOX_MOVEVECTOR_LENGTH 0.001f
 #define ROTATION_ANGLE 0.00007f
 
 // ОПИСАНИЕ СТРУКТУР
@@ -155,18 +155,18 @@ ID3D11DepthStencilView* g_pDepthStencilView = NULL; // ресурсы depth буфера
 ID3D11DepthStencilState* pDSState = NULL; // состояние depth-stencil теста
 ID3D11RasterizerState* pRasterizerState = NULL; // состояние растеризатора 
 MatricesBuffer matricesWVP; // матрицы
-XMVECTOR objectsPositions[] = { //массив точек, в которых располагаются объекты. Координаты точек должны быть деленными на W координату
-	XMVECTORF32{-0.25f, 0.0f, 0.25f, 0.0f},
-	XMVECTORF32{0.25f, 0.0f, 0.25f, 0.0f},
-	XMVECTORF32{0.0f, 0.0f, 0.25f, 0.0f}
+XMVECTOR objectsPositions[] = { //массив точек, в которых располагаются объекты. Координаты точек должны быть деленными на W координату(100)
+	XMVECTORF32{-25.0f, 0.0f, 25.0f, 0.0f}, // {-25.0f, 0.0f, 25.0f, 0.0f}
+	XMVECTORF32{25.f, 0.0f, 25.0f, 0.0f},
+	XMVECTORF32{0.0f, 0.0f, -25.0f, 0.0f}
 };
 XMMATRIX moveAheadMatrix = XMMatrixTranspose(XMMatrixTranslation(0.0f, 0.0f, 0.4f)); // матрица движения вперед
-XMVECTOR moveAheadVector = XMVectorSet(0.0f, 0.0f, -0.1f, 0.0f); // вектор движения в положительном направлении оси(в системе координат камеры)
+XMVECTOR moveAheadVector = XMVectorSet(0.0f, 0.0f, -0.1f, 0.0f); // вектор движения в положительном направлении оси(в системе координат камеры) (/100)
 XMVECTOR moveAheadVectorInGlobalCoord = XMVECTORF32{ 0.0f, 0.0f, 0.1f, 0.0f }; // вектор движения в положительном направлении оси(в глобальной системе координат)
-XMVECTOR moveBackVector = XMVectorSet(0.0f, 0.0f, 0.1f, 0.0f); // вектор движения в отрицательном направлении оси
-XMVECTOR moveRightVector = XMVectorSet(0.0f, 0.0f, 0.0f, -0.1f);
+XMVECTOR moveBackVector = XMVectorSet(0.0f, 0.0f, 0.1f, 0.0f); // вектор движения в отрицательном направлении оси (/100)
+XMVECTOR moveRightVector = XMVectorSet(0.0f, 0.0f, 0.0f, -0.1f); // (/ 100)
 XMVECTOR moveRightVectorInGlobalCoord = XMVECTORF32{ 0.1f, 0.0f, 0.0f, 0.0f }; 
-XMVECTOR moveLeftVector = XMVectorSet(0.0f, 0.0f, 0.0f, 0.1f);
+XMVECTOR moveLeftVector = XMVectorSet(0.0f, 0.0f, 0.0f, 0.1f); // (/100)
 DWORD pageSize; // размер страницы виртуальной памяти
 DWORD allocationGranularity; // выравнивание адресов в виртуальной памяти
 
@@ -182,7 +182,7 @@ HitBox** Leaf1Array; // 1 лист
 HitBox** Leaf2Array; // 2 лист
 HitBox** Leaf3Array; // 3 лист
 StaticHitBoxArea* currentHitBoxArea; // указатель на hitboxarea, в которой находится камера в данный момент
-XMFLOAT3 currentCameraPos; // текущая позиция камеры в координатах x,z
+XMFLOAT3 currentCameraPos = {0.0f, 0.0f ,0.0f}; // текущая позиция камеры в координатах x,z
 XMFLOAT3 previousCameraPos; // позиция камеры на предыдущем кадре
 // массив матриц поворота статических хитбоксов
 // чтобы выяснить попадает ли позиция камеры внутрь хитбокса, нам нужно сместить центр хитбокса так, чтобы ширина хитбокса совпадала с осью X,
@@ -321,10 +321,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 	// массив вершин (пирамида)
 	Vertex* vertexArray = new Vertex[4]{
-		Vertex{XMFLOAT4{-2.0f, -2.0f, 2.0f, 100.0f}, XMFLOAT4{1.0f, 0.0f, 0.0f, 1.0f}}, // a 0
-		Vertex{XMFLOAT4{2.0f, -2.0f, 2.0f, 100.0f}, XMFLOAT4{1.0f, 1.0f, 0.0f, 1.0f}}, //b 1
-		Vertex{XMFLOAT4{0.0f, -2.0f, -2.0f, 100.0f}, XMFLOAT4{0.0f, 0.0f, 0.0f, 1.0f}}, //c 2
-		Vertex{XMFLOAT4{0.0f, 4.0f, 0.0f, 100.0f}, XMFLOAT4{1.0f, 0.0f, 1.0f, 1.0f}} //d 3 вершина пирамиды
+		Vertex{XMFLOAT4{-2.0f, -2.0f, 2.0f, 1.0f}, XMFLOAT4{1.0f, 0.0f, 0.0f, 1.0f}}, // a 0
+		Vertex{XMFLOAT4{2.0f, -2.0f, 2.0f, 1.0f}, XMFLOAT4{1.0f, 1.0f, 0.0f, 1.0f}}, //b 1
+		Vertex{XMFLOAT4{0.0f, -2.0f, -2.0f, 1.0f}, XMFLOAT4{0.0f, 0.0f, 0.0f, 1.0f}}, //c 2
+		Vertex{XMFLOAT4{0.0f, 4.0f, 0.0f, 1.0f}, XMFLOAT4{1.0f, 0.0f, 1.0f, 1.0f}} //d 3 вершина пирамиды
 	};
 
 	// создание буфера вершин, компиляция шейдеров, связывание шейдеров и буфера вершин с конвейером
@@ -370,7 +370,13 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	matricesWVP.mView = XMMatrixTranspose(matricesWVP.mView); 
 
 	// инициализация матрицы проекции
-	SetProjectionMatrix(&matricesWVP, XM_PI / 5.0f, XM_PI / 25.0f, 0.001f, 7.35f, true);
+	matricesWVP.mProjection = XMMatrixPerspectiveFovLH(XM_PI / 2.0f, 1280.0F / 720.0F, 0.1F, 200.0F);
+	matricesWVP.mProjection.r[0] *= XMVECTORF32{0.01f, 1.0f, 1.0f, 1.0f};
+	matricesWVP.mProjection.r[1] *= XMVECTORF32{1.0f, 0.01f, 1.0f, 1.0f};
+	matricesWVP.mProjection.r[2] *= XMVECTORF32{1.0f, 1.0f, 0.01f, 0.01f};
+	matricesWVP.mProjection.r[3] *= XMVECTORF32{1.0f, 1.0f, 0.01f, 1.0f};
+	matricesWVP.mProjection = XMMatrixTranspose(matricesWVP.mProjection);
+	//SetProjectionMatrix(&matricesWVP, XM_PI / 5.0f, XM_PI / 25.0f, 0.001f, 7.35f, true);
 	//SetProjectionMatrixWithCameraDistance(&matricesWVP, XM_PI / 5.0f, XM_PI / 25.0f, 0.5f, 2.2f, 0.0001f, true);
 
 	// инициализация массива неподвижных хитбоксов
@@ -533,9 +539,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 		PostQuitMessage(0);
 		break;
 	}
-	case(WM_NULL): {
-		goto doNothing;
-	}
 	default:
 		DefWindowProc(hWnd, message, wParam, lParam);
 	}
@@ -550,7 +553,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 	StaticHitBoxesCollisionDetection();
 	DynamicHitBoxesCollisionDetection();
 
-doNothing:
 	return 0;
 };
 
@@ -812,7 +814,7 @@ void UpdateScene() {
 
 	// обновление матрицы поворота вокруг оси
 	matricesWVP.mRotationAroundAxis = XMMatrixTranspose(XMMatrixRotationAxis(g_XMIdentityR1, angleCBufferData.angle0));
-
+	/**/
 	//изменение динамических хитбоксов
 	for (int i = 0; i < DYNAMIC_HIT_BOX_AMOUNT; ++i) {
 		// если хитбокс вышел за пределы карты
@@ -852,7 +854,7 @@ void DrawScene(XMVECTOR* objectsPositionsArray) {
 
 	//отрисовка каждой пирамиды
 	for (int i = 0; i < 3; ++i) {
-		SetWorldMatrix(objectsPositionsArray[i], XMVectorSet(1.0f, 1.0f, 1.0f, 0.0f), &matricesWVP.mWorld);
+		SetWorldMatrix(objectsPositionsArray[i], XMVECTORF32{ 1.0f, 1.0f, 1.0f, 0.0f }, & matricesWVP.mWorld);
 		g_pImmediateContext->UpdateSubresource(constantBufferArray[0], 0, NULL, &matricesWVP, 0, 0);
 
 		g_pImmediateContext->DrawIndexed(12, 0, 0);
@@ -1705,7 +1707,9 @@ void InitHitBoxes() {
         {-25.0f, 0.0f, 25.0f},
         {2.0f, 0.0f, 2.0f},
         0.0f,
-		&DynamicHitBoxesMoveVectorsArray[0]
+		&DynamicHitBoxesMoveVectorsArray[0],
+		0.0f,
+		{-25.0f, 0.0f, 25.0f}
     };
 	//1 динмический хибокс
      DynamicHitBoxesArray[1] = {
@@ -1713,7 +1717,9 @@ void InitHitBoxes() {
         {25.0f, 0.0f, 25.0f},
         {2.0f, 0.0f, 2.0f},
         0.0f,
-		&DynamicHitBoxesMoveVectorsArray[1]
+		&DynamicHitBoxesMoveVectorsArray[1],
+		0.0f,
+		{25.0f, 0.0f, 25.0f}
     };
 	 //2 динмический хибокс
      DynamicHitBoxesArray[2] = {
@@ -1721,7 +1727,9 @@ void InitHitBoxes() {
         {0.0f, 0.0f, -25.0f},
         {2.0f, 0.0f, 2.0f},
         0.0f,
-		&DynamicHitBoxesMoveVectorsArray[2]
+		&DynamicHitBoxesMoveVectorsArray[2],
+		0.0f,
+		{0.0f, 0.0f, -25.0f}
     };
 
 	 //инициализация векторов движения динамических хитбоксов
@@ -1883,6 +1891,10 @@ inline void InitMoveVectorsAndActiveCyclesAmountForDynamicHitBoxes() {
 		DynamicHitBoxesArray[i].activeCyclesAmount = DynamicHitBoxCyclesAmount(&DynamicHitBoxesArray[i]);
 	}
 };
+
+inline XMFLOAT3 __vectorcall ConvertToHomogeneousCoord() {
+
+}
 
 void ReleaseObjects() {
 	if (dynamicMemory != NULL) {
