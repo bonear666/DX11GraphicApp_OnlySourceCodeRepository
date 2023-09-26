@@ -34,6 +34,7 @@ using namespace DirectX;
 #define DYNAMIC_HIT_BOX_AMOUNT 3
 #define DYNAMIC_HIT_BOX_MOVEVECTOR_LENGTH 0.001f
 #define ROTATION_ANGLE 0.00007f
+#define W_COORD 0.01f
 
 // ОПИСАНИЕ СТРУКТУР
 
@@ -155,18 +156,18 @@ ID3D11DepthStencilView* g_pDepthStencilView = NULL; // ресурсы depth буфера
 ID3D11DepthStencilState* pDSState = NULL; // состояние depth-stencil теста
 ID3D11RasterizerState* pRasterizerState = NULL; // состояние растеризатора 
 MatricesBuffer matricesWVP; // матрицы
-XMVECTOR objectsPositions[] = { //массив точек, в которых располагаются объекты. Координаты точек должны быть деленными на W координату(100)
+XMVECTOR objectsPositions[] = { //массив точек, в которых располагаются объекты
 	XMVECTORF32{-25.0f, 0.0f, 25.0f, 0.0f}, // {-25.0f, 0.0f, 25.0f, 0.0f}
 	XMVECTORF32{25.f, 0.0f, 25.0f, 0.0f},
 	XMVECTORF32{0.0f, 0.0f, -25.0f, 0.0f}
 };
 XMMATRIX moveAheadMatrix = XMMatrixTranspose(XMMatrixTranslation(0.0f, 0.0f, 0.4f)); // матрица движения вперед
-XMVECTOR moveAheadVector = XMVectorSet(0.0f, 0.0f, -0.1f, 0.0f); // вектор движения в положительном направлении оси(в системе координат камеры) (/100)
+XMVECTOR moveAheadVector = XMVectorSet(0.0f, 0.0f, -0.1f, 0.0f); // вектор движения в положительном направлении оси(в системе координат камеры) 
 XMVECTOR moveAheadVectorInGlobalCoord = XMVECTORF32{ 0.0f, 0.0f, 0.1f, 0.0f }; // вектор движения в положительном направлении оси(в глобальной системе координат)
-XMVECTOR moveBackVector = XMVectorSet(0.0f, 0.0f, 0.1f, 0.0f); // вектор движения в отрицательном направлении оси (/100)
-XMVECTOR moveRightVector = XMVectorSet(0.0f, 0.0f, 0.0f, -0.1f); // (/ 100)
+XMVECTOR moveBackVector = XMVectorSet(0.0f, 0.0f, 0.1f, 0.0f); // вектор движения в отрицательном направлении оси
+XMVECTOR moveRightVector = XMVectorSet(0.0f, 0.0f, 0.0f, -0.1f); 
 XMVECTOR moveRightVectorInGlobalCoord = XMVECTORF32{ 0.1f, 0.0f, 0.0f, 0.0f }; 
-XMVECTOR moveLeftVector = XMVectorSet(0.0f, 0.0f, 0.0f, 0.1f); // (/100)
+XMVECTOR moveLeftVector = XMVectorSet(0.0f, 0.0f, 0.0f, 0.1f); 
 DWORD pageSize; // размер страницы виртуальной памяти
 DWORD allocationGranularity; // выравнивание адресов в виртуальной памяти
 
@@ -346,7 +347,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		2, 1, 0 //adb  невидимая грань (обход против часовой стрелки)
 	};
 
-	InvertIndices(indices, 12);
+	//InvertIndices(indices, 12);
 
 	// Создание константного буфера матриц, константного буфера угла, буфера вершин
 	hr = InitMatrices(indices);
@@ -370,13 +371,32 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	matricesWVP.mView = XMMatrixTranspose(matricesWVP.mView); 
 
 	// инициализация матрицы проекции
-	matricesWVP.mProjection = XMMatrixPerspectiveFovLH(XM_PI / 2.0f, 1280.0F / 720.0F, 0.1F, 200.0F);
-	matricesWVP.mProjection.r[0] *= XMVECTORF32{0.01f, 1.0f, 1.0f, 1.0f};
-	matricesWVP.mProjection.r[1] *= XMVECTORF32{1.0f, 0.01f, 1.0f, 1.0f};
-	matricesWVP.mProjection.r[2] *= XMVECTORF32{1.0f, 1.0f, 0.01f, 0.01f};
-	matricesWVP.mProjection.r[3] *= XMVECTORF32{1.0f, 1.0f, 0.01f, 1.0f};
+	float fovAngle = XM_PI / 2.5f;
+	float ratio = 1280.0F / 720.0F;
+	matricesWVP.mProjection = XMMatrixPerspectiveFovLH(fovAngle, ratio, 0.1F, 200.0F);
+	matricesWVP.mProjection.r[0] *= XMVECTORF32{W_COORD, 1.0f, 1.0f, 1.0f};
+	matricesWVP.mProjection.r[1] *= XMVECTORF32{1.0f, W_COORD, 1.0f, 1.0f};
+	matricesWVP.mProjection.r[2] *= XMVECTORF32{1.0f, 1.0f, W_COORD, W_COORD};
+	matricesWVP.mProjection.r[3] *= XMVECTORF32{1.0f, 1.0f, W_COORD, 1.0f};
 	matricesWVP.mProjection = XMMatrixTranspose(matricesWVP.mProjection);
-	//SetProjectionMatrix(&matricesWVP, XM_PI / 5.0f, XM_PI / 25.0f, 0.001f, 7.35f, true);
+	/*
+	float sin1;
+	float cos1;
+	XMScalarSinCos(&sin1, &cos1, 0.5f * fovAngle);
+	float myCoeff = 1.0f / (1.0f - (sin1 / cos1));
+	
+	matricesWVP.mProjection = XMMatrixPerspectiveFovLH(fovAngle, ratio, 0.1F, 200.0F);
+	matricesWVP.mProjection.r[0] *= XMVECTORF32{0.0f, 1.0f, 1.0f, 1.0f};
+	matricesWVP.mProjection.r[1] *= XMVECTORF32{1.0f, 0.0f, 1.0f, 1.0f};
+	matricesWVP.mProjection.r[0] += XMVECTORF32{1.0f * myCoeff, 0.0f, 0.0f, 0.0f};
+	matricesWVP.mProjection.r[1] += XMVECTORF32{0.0f, ratio * myCoeff, 0.0f, 0.0f};
+	
+	matricesWVP.mProjection.r[0] *= XMVECTORF32{W_COORD, 1.0f, 1.0f, 1.0f};
+	matricesWVP.mProjection.r[1] *= XMVECTORF32{1.0f, W_COORD, 1.0f, 1.0f};
+	matricesWVP.mProjection.r[2] *= XMVECTORF32{1.0f, 1.0f, W_COORD, W_COORD};
+	matricesWVP.mProjection.r[3] *= XMVECTORF32{1.0f, 1.0f, W_COORD, 1.0f};
+	matricesWVP.mProjection = XMMatrixTranspose(matricesWVP.mProjection); */
+	//SetProjectionMatrix(&matricesWVP, 0, XM_PI / 100.0f, 0.001f, 7.35f, true);
 	//SetProjectionMatrixWithCameraDistance(&matricesWVP, XM_PI / 5.0f, XM_PI / 25.0f, 0.5f, 2.2f, 0.0001f, true);
 
 	// инициализация массива неподвижных хитбоксов
@@ -401,7 +421,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		if (ChangesOfStaticHtBoxesArea) {
 			DefineCurrentStaticHtBoxesArea();
 		}
-		StaticHitBoxesCollisionDetection();
+		//StaticHitBoxesCollisionDetection();
 		DynamicHitBoxesCollisionDetection();
 	}
 	// окночание работы приложения
@@ -437,6 +457,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 				// можно было бы просто прибавить moveAheadVector к последней строчке view matrix, но эта матрица уже транспонирована, поэтому так сделать не получится 
 				matricesWVP.mView = XMMatrixTranspose(XMMatrixTranslationFromVector(moveAheadVector)) * matricesWVP.mView;
 				//бляяя зачем я решил хранить позицию камеры в xmfloat3, нужно было в xmvector
+				// меняем позицию камеры относительно глобальных координат
 				sseProxyRegister0 = XMLoadFloat3(&currentCameraPos); 
 				sseProxyRegister0 += moveAheadVectorInGlobalCoord;
 				XMStoreFloat3(&currentCameraPos, sseProxyRegister0);
@@ -482,11 +503,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 
 			XMMATRIX matrixRotationNewX = XMMatrixRotationX(-XM_PI * 0.0005 * mouseY); //матрица поворота вокруг оси X
 			XMMATRIX matrixRotationNewY = XMMatrixRotationNormal(newYAxisRotation, -XM_PI * 0.0005 * mouseX); //матрица поворота вокруг оси Y
-			newYAxisRotation = XMVector3Transform(newYAxisRotation, matrixRotationNewX); //статическая ось Y, вокруг которой происходит поворот
+			newYAxisRotation = XMVector3Transform(newYAxisRotation, matrixRotationNewX); //статичная ось Y, вокруг которой происходит поворот
 			moveAheadVector = XMVector3Transform(moveAheadVector, matrixRotationNewX);
 			moveBackVector = (-1.0f) * moveAheadVector;
 
-			matricesWVP.mView = XMMatrixTranspose(matrixRotationNewY * matrixRotationNewX) * matricesWVP.mView;
+			matricesWVP.mView = XMMatrixTranspose(matrixRotationNewX * matrixRotationNewY) * matricesWVP.mView;
 
 			//то же самое, только реализовано через построение новой матрицы вида
 			/*
@@ -513,16 +534,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 			//изменение moveRightVector в глобальной системе координат
 			moveRightVectorInGlobalCoord = XMVector3Transform(moveRightVectorInGlobalCoord, sseProxyRegister0_Matrix);
 		}
-		/*
-		UpdateScene();
-		DrawScene(objectsPositions);
-		// проверка на столкновение камеры с статическими и динамическими хитбоксами
-		// если камера перешла в другую область статических хитбоксов
-		if (ChangesOfStaticHtBoxesArea) {
-			DefineCurrentStaticHtBoxesArea();
-		}
-		StaticHitBoxesCollisionDetection();
-		DynamicHitBoxesCollisionDetection();*/
 		break; 
 	}
 
@@ -550,7 +561,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 	if (ChangesOfStaticHtBoxesArea) {
 		DefineCurrentStaticHtBoxesArea();
 	}
-	StaticHitBoxesCollisionDetection();
+	//StaticHitBoxesCollisionDetection();
 	DynamicHitBoxesCollisionDetection();
 
 	return 0;
@@ -1795,10 +1806,10 @@ void DynamicHitBoxesCollisionDetection() {
 				if (minX < minZ) {
 					//если минимальное расстояние явлется минимальным расстоянием от точки до левой грани хитбокса
 					if (minX == XMVectorGetX(sseProxyRegister1)) {
-						sseProxyRegister1 = XMVectorSetX(sseProxyRegister1, -0.005f); // 0.0005 это расстояние на которое отодвигается камера от грани хитбокса
+						sseProxyRegister1 = XMVectorSetX(sseProxyRegister1, -0.05f); // 0.0005 это расстояние на которое отодвигается камера от грани хитбокса
 					}
 					else { //если минимальное расстояние явлется минимальным расстоянием от точки до правой грани хитбокса
-						sseProxyRegister2 = XMVectorSetX(sseProxyRegister2, 0.005f);
+						sseProxyRegister2 = XMVectorSetX(sseProxyRegister2, 0.05f);
 						sseProxyRegister3 += sseProxyRegister2;
 						sseProxyRegister1 += XMVectorAndInt(sseProxyRegister3, g_XMMaskX);
 					}
@@ -1806,10 +1817,10 @@ void DynamicHitBoxesCollisionDetection() {
 				else {// если минимальное расстояние до граней находится по оси Z
 					//если минимальное расстояние явлется минимальным расстоянием от точки до нижней грани хитбокса
 					if (minZ == XMVectorGetZ(sseProxyRegister1)) {
-						sseProxyRegister1 = XMVectorSetZ(sseProxyRegister1, -0.005f);
+						sseProxyRegister1 = XMVectorSetZ(sseProxyRegister1, -0.05f);
 					}
 					else { //если минимальное расстояние явлется минимальным расстоянием от точки до верхней грани хитбокса
-						sseProxyRegister2 = XMVectorSetZ(sseProxyRegister2, 0.005f);
+						sseProxyRegister2 = XMVectorSetZ(sseProxyRegister2, 0.05f);
 						sseProxyRegister3 += sseProxyRegister2;
 						sseProxyRegister1 += XMVectorAndInt(sseProxyRegister3, g_XMMaskZ);
 					}
@@ -1826,9 +1837,12 @@ void DynamicHitBoxesCollisionDetection() {
 
 				//меняем view matrix, так чтобы она описывала систему координат в новой, смещенной точке
 				//находим координаты новой позиции в текущей системе координат камеры
+				matricesWVP.mView = XMMatrixTranspose(matricesWVP.mView);
 				sseProxyRegister1 = XMVector3Transform(sseProxyRegister1, matricesWVP.mView);
+				sseProxyRegister1 = XMVectorSetW(sseProxyRegister1, 0.0f);
 				//переносим систему координат камеры в новую точку
 				matricesWVP.mView.r[3] -= sseProxyRegister1;
+				matricesWVP.mView = XMMatrixTranspose(matricesWVP.mView);
 			}
 		}
 	}
@@ -1837,7 +1851,7 @@ void DynamicHitBoxesCollisionDetection() {
 float DynamicHitBoxCyclesAmount(DynamicHitBox* hitBox) {
 	// позиция хитбокса относительно системы координат, находящейся в левом нижнем углу карты
 	sseProxyRegister0 = XMLoadFloat3(&hitBox->position);
-	sseProxyRegister0 -= halvesOfWidthHeightLengthOfMap;
+	sseProxyRegister0 += halvesOfWidthHeightLengthOfMap;
 	
 	// узнаем какие координаты вектора движения отрицательные, и какие положительные
 	sseProxyRegister1 = XMVectorAndInt(*hitBox->moveVectorPtr, g_XMNegate3);
@@ -1846,18 +1860,22 @@ float DynamicHitBoxCyclesAmount(DynamicHitBox* hitBox) {
 	float zValue = XMVectorGetZ(sseProxyRegister1);
 
 	// если X < 0 или X == -0
-	if (*((UINT*) &xValue) == 0x80000000) { // пиздец уродство... ну а как по другому, union или reinterpret_cast мб?
+	if (*((UINT*) &xValue) == 0x80000000U) { // пиздец уродство... ну а как по другому, union или reinterpret_cast мб?
 		sseProxyRegister2 = XMVectorSetX(sseProxyRegister2, 0.0f);
 	}
-	// если X > 0 или X == +0
-	sseProxyRegister2 = XMVectorSetX(sseProxyRegister2, 100.0f); // 100 - ширина карты
+	else {
+		// если X > 0 или X == +0
+		sseProxyRegister2 = XMVectorSetX(sseProxyRegister2, 100.0f); // 100 - ширина карты
+	}
 	
 	// если Z < 0 или Z == -0
-	if (*((UINT*) &zValue) == 0x80000000) {
+	if (*((UINT*) &zValue) == 0x80000000U) {
 		sseProxyRegister2 = XMVectorSetZ(sseProxyRegister2, 0.0f);
 	}
-	// если Z > 0 или Z == +0
-	sseProxyRegister2 = XMVectorSetZ(sseProxyRegister2, 100.0f); // 100 - длина карты
+	else {
+		// если Z > 0 или Z == +0
+		sseProxyRegister2 = XMVectorSetZ(sseProxyRegister2, 100.0f); // 100 - длина карты
+	}
 
 	// количество moveVector-ов необходимых прибавить к позиции хитбокса, для того
 	// чтобы центр хитбокса вышел за пределы карты
