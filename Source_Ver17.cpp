@@ -144,7 +144,8 @@ ID3D11VertexShader* g_pVertexShader = NULL; // указатель на интерфейс vertex sha
 ID3D11PixelShader* g_pPixelShader = NULL; // указатель на интерфейс pixel shader
 ID3DBlob* VS_Buffer = NULL; // указатель на интерфейс буфера с скомпилированным вершинным шейдером 
 ID3DBlob* PS_Buffer = NULL; // указатель на интерфейс буфера с скомпилированным пиксельным шейдером 
-ID3D11Buffer* pVertexBuffer = NULL; // указатель на буфер вершин
+ID3D11Buffer* pVertexBuffer = NULL; // указатель на буфер вершин пирамиды
+ID3D11Buffer* pWallsVertexBuffer = NULL; // указатель на буфер вершин стен
 ID3D11Buffer* pConstantBuffer = NULL; // констнантный буфер
 ID3D11Buffer* pIndexBuffer = NULL; // буфер индексов
 ID3D11Buffer* pAngleBuffer = NULL; // буфер угла 
@@ -298,6 +299,8 @@ void CreateNewMoveVectorForDynamicHitBox(DynamicHitBox* hitBox);
 inline void InitMoveVectorsAndActiveCyclesAmountForDynamicHitBoxes();
 // оконна€ процедура, котора€ обрабатывает все сообщени€ по дефолту
 LRESULT CALLBACK StartUpWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
+// 
+HRESULT InitWallsVertices(Vertex* wallsVertexArray, LPCWSTR wallsVertexShaderName, LPCWSTR wallsPixelShaderName, LPCSTR vsShaderEntryPoint, LPCSTR psShaderEntryPoint);
 
 
 // √лавна€ функци€, точка входа
@@ -326,6 +329,17 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		Vertex{XMFLOAT4{2.0f, -2.0f, 2.0f, 1.0f}, XMFLOAT4{1.0f, 1.0f, 0.0f, 1.0f}}, //b 1
 		Vertex{XMFLOAT4{0.0f, -2.0f, -2.0f, 1.0f}, XMFLOAT4{0.0f, 0.0f, 0.0f, 1.0f}}, //c 2
 		Vertex{XMFLOAT4{0.0f, 4.0f, 0.0f, 1.0f}, XMFLOAT4{1.0f, 0.0f, 1.0f, 1.0f}} //d 3 вершина пирамиды
+	};
+
+	Vertex* wallsVertices = new Vertex[8]{
+		Vertex{XMFLOAT4{-50.0f, -2.0f, 50.0f, 1.0f}, XMFLOAT4{1.0f, 1.0f, 1.0f, 1.0f}}, 
+		Vertex{XMFLOAT4{-50.0f, 6.0f, 50.0f, 1.0f}, XMFLOAT4{1.0f, 1.0f, 1.0f, 1.0f}},
+		Vertex{XMFLOAT4{50.0f, -2.0f, 50.0f, 1.0f}, XMFLOAT4{1.0f, 1.0f, 1.0f, 1.0f}},
+		Vertex{XMFLOAT4{50.0f, 6.0f, 50.0f, 1.0f}, XMFLOAT4{1.0f, 1.0f, 1.0f, 1.0f}},
+		Vertex{XMFLOAT4{-50.0f, -2.0f, -50.0f, 1.0f}, XMFLOAT4{1.0f, 1.0f, 1.0f, 1.0f}},
+		Vertex{XMFLOAT4{-50.0f, 6.0f, -50.0f, 1.0f}, XMFLOAT4{1.0f, 1.0f, 1.0f, 1.0f}},
+		Vertex{XMFLOAT4{50.0f, -2.0f, -50.0f, 1.0f}, XMFLOAT4{1.0f, 1.0f, 1.0f, 1.0f}},
+		Vertex{XMFLOAT4{50.0f, 6.0f, -50.0f, 1.0f}, XMFLOAT4{1.0f, 1.0f, 1.0f, 1.0f}}
 	};
 
 	// создание буфера вершин, компил€ци€ шейдеров, св€зывание шейдеров и буфера вершин с конвейером
@@ -1910,9 +1924,33 @@ inline void InitMoveVectorsAndActiveCyclesAmountForDynamicHitBoxes() {
 	}
 };
 
-inline XMFLOAT3 __vectorcall ConvertToHomogeneousCoord() {
+HRESULT InitWallsVertices(Vertex* wallsVertexArray, LPCWSTR wallsVertexShaderName, LPCWSTR wallsPixelShaderName, LPCSTR vsShaderEntryPoint, LPCSTR psShaderEntryPoint) {
+	HRESULT hr;
 
-}
+	D3D11_BUFFER_DESC vertexBufferDesc;
+	vertexBufferDesc.ByteWidth = sizeof(Vertex) * 8;
+	vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+	vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	vertexBufferDesc.CPUAccessFlags = 0;
+	vertexBufferDesc.MiscFlags = 0;
+	vertexBufferDesc.StructureByteStride = 0;
+
+	D3D11_SUBRESOURCE_DATA vertexBufferSubresourceInitData;
+	vertexBufferSubresourceInitData.pSysMem = wallsVertexArray;
+	vertexBufferSubresourceInitData.SysMemPitch = 0;
+	vertexBufferSubresourceInitData.SysMemSlicePitch = 0;
+
+	hr = g_pd3dDevice->CreateBuffer(&vertexBufferDesc, &vertexBufferSubresourceInitData, &pWallsVertexBuffer);
+	if (FAILED(hr)) {
+		return hr;
+	}
+
+	UINT stride[] = { sizeof(Vertex) };
+	UINT offset[] = { 0 };
+	g_pImmediateContext->IASetVertexBuffers(1, 1, &pWallsVertexBuffer, stride, offset);
+
+
+};
 
 void ReleaseObjects() {
 	if (dynamicMemory != NULL) {
