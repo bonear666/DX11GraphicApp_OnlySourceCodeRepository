@@ -36,6 +36,11 @@ using namespace DirectX;
 #define ROTATION_ANGLE 0.00007f
 #define W_COORD 0.01f
 
+#define SHADERS_MODEL(FEATURE_LEVEL) if (FEATURE_LEVEL >= D3D_FEATURE_LEVEL_11_0) {\
+											shadersModel = { "vs_5_0", "ps_5_0" };\
+										}\
+										else\
+											shadersModel = { "vs_4_0", "ps_4_0" };
 // ОПИСАНИЕ СТРУКТУР
 
 // Описание вершин
@@ -139,6 +144,7 @@ ID3D11Device* g_pd3dDevice = NULL; //указатель на struct(Объект Интерфейса ID3D1
 ID3D11DeviceContext* g_pImmediateContext = NULL; //указатель на struct(Объект Интерфейса ID3D11DeviceContext). ID3D11DeviceContext это COM-интерфейс, который занимается отрисовкой графической информации на Дисплей.
 IDXGISwapChain* g_pSwapChain = NULL; //указатель на struct(Объект Интерфейса IDXGISwapChain). IDXGISwapChain это COM-интерфейс, который хранит в нескольких буферах несколько отрисованых Поверхностей перед их выводом на Дисплей.
 ID3D11RenderTargetView* g_pRenderTargetView = NULL; //указатель на struct(Объект Интерфейса ID3D11RenderTargetView). ID3D11RenderTargetView это COM-интерфейс, который хранит ресурсы back buffer-а. 
+ShaderModelDesc shadersModel;
 ID3D11InputLayout* g_pInputLayoutObject = NULL; // указатель на input layout object
 ID3D11VertexShader* g_pVertexShader = NULL; // указатель на интерфейс vertex shader
 ID3D11PixelShader* g_pPixelShader = NULL; // указатель на интерфейс pixel shader
@@ -962,12 +968,7 @@ HRESULT InitGeometry(Vertex* vertexArray, LPCWSTR vertexShaderName, LPCWSTR pixe
 	g_pImmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 	// компиляция шейдеров
-	ShaderModelDesc shadersModel;
-	if (g_featureLevel >= D3D_FEATURE_LEVEL_11_0) {
-		shadersModel = { "vs_5_0", "ps_5_0" };
-	}
-	else
-		shadersModel = { "vs_4_0", "ps_4_0" };
+	SHADERS_MODEL(g_featureLevel)
 
 	// компиляция вершинного шейдера
 	hr = CompileShader(vertexShaderName, vsShaderEntryPoint, shadersModel.vertexShaderModel, &VS_Buffer);
@@ -1947,8 +1948,11 @@ HRESULT InitWallsVertices(Vertex* wallsVertexArray, LPCWSTR wallsVertexShaderNam
 
 	UINT stride[] = { sizeof(Vertex) };
 	UINT offset[] = { 0 };
-	g_pImmediateContext->IASetVertexBuffers(1, 1, &pWallsVertexBuffer, stride, offset);
+	g_pImmediateContext->IASetVertexBuffers(0, 1, &pWallsVertexBuffer, stride, offset);
 
+	// компиляция шейдеров
+	// Создание Input-Layout Object
+	// Связывание Input-layout object с конвейером
 
 };
 
