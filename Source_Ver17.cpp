@@ -1951,6 +1951,23 @@ HRESULT InitWallsVertices(Vertex* wallsVertexArray, LPCWSTR wallsVertexShaderNam
 	g_pImmediateContext->IASetVertexBuffers(0, 1, &pWallsVertexBuffer, stride, offset);
 
 	// компил€ци€ шейдеров
+	// найти cso файлы в директории
+	WCHAR file1Name [] = "TriangleVertexShader";
+	size_t file1NameSize = sizeof(file1Name);
+	
+	HANDLE searchHandle;
+	WIN32_FIND_DATA fileData;
+	DWORD curDirLength = GetCurrentDirectory(0, NULL) - 1;
+	DWORD fileDirBufLength = curDirLength + file1NameSize;
+	WCHAR fileDirBuffer [fileDirBufLength];
+	GetCurrentDirectory(fileDirBufLength, &fileDirBuffer);
+	memcpy(&fileDirBuffer[curDirLength - 1], &file1Name[0], file1NameSize);
+	
+	searchHandle = FindFirstFileEx(dirBuf, FindExInfoBasic, &fileData, FindExSearchNameMatch, NULL, 0);
+	if(searchHandle != ){
+		
+	}
+	
 	// —оздание Input-Layout Object
 	// —в€зывание Input-layout object с конвейером
 
