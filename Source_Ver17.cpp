@@ -1952,25 +1952,51 @@ HRESULT InitWallsVertices(Vertex* wallsVertexArray, LPCWSTR wallsVertexShaderNam
 
 	// компиляция шейдеров
 	// найти cso файлы в директории
-	WCHAR file1Name [] = "TriangleVertexShader";
+	
+	
+	// Создание Input-Layout Object
+	// Связывание Input-layout object с конвейером
+
+};
+
+void FindFilesInCurrentDir(WCHAR* filesArray, size_t* filesNamesLengthArray){
+	// найти cso файлы в директории
+	WCHAR file1Name [] = "\TriangleVertexShader";
 	size_t file1NameSize = sizeof(file1Name);
 	
 	HANDLE searchHandle;
 	WIN32_FIND_DATA fileData;
+	
 	DWORD curDirLength = GetCurrentDirectory(0, NULL) - 1;
 	DWORD fileDirBufLength = curDirLength + file1NameSize;
 	WCHAR fileDirBuffer [fileDirBufLength];
 	GetCurrentDirectory(fileDirBufLength, &fileDirBuffer);
 	memcpy(&fileDirBuffer[curDirLength - 1], &file1Name[0], file1NameSize);
 	
-	searchHandle = FindFirstFileEx(dirBuf, FindExInfoBasic, &fileData, FindExSearchNameMatch, NULL, 0);
-	if(searchHandle != ){
+	searchHandle = FindFirstFileEx(fileDirBuffer, FindExInfoBasic, &fileData, FindExSearchNameMatch, NULL, 0);
+	// если файл найден в текущей директории
+	if(searchHandle != INVALID_HANDLE_VALUE){
+		
+	} else {
+		// ищем файл в папках текущей директории
+		FindClose(searchHandle);
+		
+		fileDirBuffer[curDirLength + 1] = L'*';
+		fileDirBuffer[curDirLength + 2] = NULL;
+		searchHandle = FindFirstFileEx(fileDirBuffer, FindExInfoBasic, &fileData, FindExSearchLimitToDirectories, NULL, 0);
+		// если файловая система поддерживает фильтрацию файлов по папкам
+		if(searchHandle != ERROR_NOT_SUPPORTED){
+			
+		} else {
+			searchHandle = FindFirstFileEx(fileDirBuffer, FindExInfoBasic, &fileData, FindExSearchNameMatch, NULL, 0);
+			// если найденый файл - директория
+			if(fileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+				//...имя папки
+				FindClose(searchHandle);
+			}
+		}
 		
 	}
-	
-	// Создание Input-Layout Object
-	// Связывание Input-layout object с конвейером
-
 };
 
 void ReleaseObjects() {
