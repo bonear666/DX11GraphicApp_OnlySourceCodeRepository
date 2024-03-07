@@ -1959,44 +1959,78 @@ HRESULT InitWallsVertices(Vertex* wallsVertexArray, LPCWSTR wallsVertexShaderNam
 
 };
 
-void FindFilesInCurrentDir(WCHAR* filesArray, size_t* filesNamesLengthArray){
+void FindFilesInCurrentDir1(WCHAR* filesArray, size_t* filesNamesLengthArray){
 	// найти cso файлы в директории
-	WCHAR file1Name [] = "\TriangleVertexShader";
+	WCHAR file1Name [] = "/TriangleVertexShader*";
 	size_t file1NameSize = sizeof(file1Name);
 	
 	HANDLE searchHandle;
 	WIN32_FIND_DATA fileData;
 	
-	DWORD curDirLength = GetCurrentDirectory(0, NULL) - 1;
-	DWORD fileDirBufLength = curDirLength + file1NameSize;
-	WCHAR fileDirBuffer [fileDirBufLength];
+	// длина текущей директории с учетом null
+	DWORD curDirLength = GetCurrentDirectory(0, NULL);
+	DWORD fileDirBufLength = curDirLength + file1NameSize - 1;
+	WCHAR fileDirBuffer [MAX_PATH];
 	GetCurrentDirectory(fileDirBufLength, &fileDirBuffer);
 	memcpy(&fileDirBuffer[curDirLength - 1], &file1Name[0], file1NameSize);
 	
 	searchHandle = FindFirstFileEx(fileDirBuffer, FindExInfoBasic, &fileData, FindExSearchNameMatch, NULL, 0);
 	// если файл найден в текущей директории
 	if(searchHandle != INVALID_HANDLE_VALUE){
-		
+		//ret fileDirBuffer
+		FindClose(searchHandle);
 	} else {
-		// ищем файл в папках текущей директории
 		FindClose(searchHandle);
 		
-		fileDirBuffer[curDirLength + 1] = L'*';
-		fileDirBuffer[curDirLength + 2] = NULL;
+		// ищем файл в папках текущей директории
+		//маска, которая определяет все файлы текущей директории
+		fileDirBuffer[curDirLength] = L'*';
+		fileDirBuffer[curDirLength + 1] = NULL;
+		
 		searchHandle = FindFirstFileEx(fileDirBuffer, FindExInfoBasic, &fileData, FindExSearchLimitToDirectories, NULL, 0);
+		do {
+		
 		// если файловая система поддерживает фильтрацию файлов по папкам
 		if(searchHandle != ERROR_NOT_SUPPORTED){
 			
 		} else {
 			searchHandle = FindFirstFileEx(fileDirBuffer, FindExInfoBasic, &fileData, FindExSearchNameMatch, NULL, 0);
+			
 			// если найденый файл - директория
 			if(fileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
-				//...имя папки
-				FindClose(searchHandle);
+				size_t curDirLengthOld = curDirLength;
+				
+				// изменение текущей директории
+				size_t fileNameLength = FileNameLength(fileData.cFileName);
+				memcpy(&fileDirBuffer[curDirLength], fileData.cFileName[0], fileNameLength);
+				curDirLength += fileNameLength;
+				
+				if(FindFilesInCurrentDir()){
+					FindClose(searchHandle);
+					} else {
+						FindNextFile
+					}
+			} else {
+				FindNextFile()
 			}
 		}
-		
+	} while()	
 	}
+};
+
+void FindFilesInCurrentDir(WCHAR* fileNameDir){
+	
+}
+
+// с учетом null
+inline size_t __vectorcall FileNameLength(WCHAR* name){
+	size_t nameLength = 1;
+	if(name[nameLength] != NULL){
+		nameLength++;
+	} 
+	nameLength++;
+	
+	return nameLength;
 };
 
 void ReleaseObjects() {
