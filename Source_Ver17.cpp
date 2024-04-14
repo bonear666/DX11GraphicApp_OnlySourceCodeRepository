@@ -1961,7 +1961,7 @@ HRESULT InitWallsVertices(Vertex* wallsVertexArray, LPCWSTR wallsVertexShaderNam
 
 void FindFilesInCurrentDir1(WCHAR* filesArray, size_t* filesNamesLengthArray){
 	// найти cso файлы в директории
-	WCHAR file1Name [] = "/TriangleVertexShader*";
+	WCHAR file1Name [] = "\TriangleVertexShader*";
 	size_t file1NameSize = sizeof(file1Name);
 	
 	HANDLE searchHandle;
@@ -1972,6 +1972,7 @@ void FindFilesInCurrentDir1(WCHAR* filesArray, size_t* filesNamesLengthArray){
 	DWORD fileDirBufLength = curDirLength + file1NameSize - 1;
 	WCHAR fileDirBuffer [MAX_PATH];
 	GetCurrentDirectory(fileDirBufLength, &fileDirBuffer);
+	// создается полный путь до файла
 	memcpy(&fileDirBuffer[curDirLength - 1], &file1Name[0], file1NameSize);
 	
 	searchHandle = FindFirstFileEx(fileDirBuffer, FindExInfoBasic, &fileData, FindExSearchNameMatch, NULL, 0);
@@ -2018,7 +2019,7 @@ void FindFilesInCurrentDir1(WCHAR* filesArray, size_t* filesNamesLengthArray){
 	}
 };
 
-void FindFilesInCurrentDir(WCHAR* fileNameDir){
+HRESULT FindFilesInCurrentDir(WCHAR* fileDir, DWORD dirNullPos){
 	
 }
 
