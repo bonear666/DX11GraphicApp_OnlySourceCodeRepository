@@ -1967,7 +1967,7 @@ void FindFilesInCurrentDir1(WCHAR* filesArray, size_t* filesNamesLengthArray){
 	HANDLE searchHandle;
 	WIN32_FIND_DATA fileData;
 	
-	// длина текущей директории с учетом null
+	// длина текущей директории с учетом null(все длины строк с учетом null)
 	DWORD curDirLength = GetCurrentDirectory(0, NULL);
 	DWORD fileDirBufLength = curDirLength + file1NameSize - 1;
 	WCHAR fileDirBuffer [MAX_PATH];
