@@ -1978,55 +1978,16 @@ void FindFilesInCurrentDir1(WCHAR* filesArray, size_t* filesNamesLengthArray){
 	// создается полный путь до файла
 	memcpy(&fileDirBuffer[curDirLength - 1], &fileName[0], fileNameSize);
 	
-	searchHandle = FindFirstFileEx(fileDirBuffer, FindExInfoBasic, &fileData, FindExSearchNameMatch, NULL, 0);
-	// если файл найден в текущей директории
-	if(searchHandle != INVALID_HANDLE_VALUE){
-		//ret fileDirBuffer
-		FindClose(searchHandle);
-	} else {
-		FindClose(searchHandle);
-		
-		// ищем файл в папках текущей директории
-		// маска, которая определяет все файлы текущей директории
-		fileDirBuffer[curDirLength] = L'*';
-		fileDirBuffer[curDirLength + 1] = NULL;
-		
-		searchHandle = FindFirstFileEx(fileDirBuffer, FindExInfoBasic, &fileData, FindExSearchLimitToDirectories, NULL, 0);
-		do {
-		
-		// если файловая система поддерживает фильтрацию файлов по папкам
-		if(searchHandle != ERROR_NOT_SUPPORTED){
-			
-		} else {
-			searchHandle = FindFirstFileEx(fileDirBuffer, FindExInfoBasic, &fileData, FindExSearchNameMatch, NULL, 0);
-			
-			// если найденый файл - директория
-			if(fileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
-				size_t curDirLengthOld = curDirLength;
-				
-				// изменение текущей директории
-				size_t fileNameLength = FileNameLength(fileData.cFileName);
-				memcpy(&fileDirBuffer[curDirLength], fileData.cFileName[0], fileNameLength);
-				curDirLength += fileNameLength;
-				
-				if(FindFilesInCurrentDir()){
-					FindClose(searchHandle);
-					} else {
-						FindNextFile
-					}
-			} else {
-				FindNextFile()
-			}
-		}
-	} while()	
-	}
+	
+	
 };
-// prevDirNullPos - позиция null-символа в предыдущей директории, учитывая что вид директории следующий: dir1\dir2\...\*'NULL'
-HRESULT FindFilesInCurrentDir(WCHAR* fileDir, DWORD prevDirNullPos, DWORD fileDirBufLength, WCHAR* fileName, size_t fileNameLength){
+// ищет первый попавшийся файл, заданный в качестве аргумента, в заданной директории
+// fileName должден начининаться с '\', fileDir должен заканчиваться названием крайнего каталога или диска, без '\'
+HRESULT FindFilesInCurrentDir(WCHAR* fileDir, size_t fileDirBufLength, WCHAR* fileName, size_t fileNameLength, WIN32_FIND_DATA* fileDataPtr){
 	// создается полный путь до файла
 	memcpy(&fileDirBuffer[fileDirBufLength - 1], &fileName[0], fileNameSize);
 	
-	searchHandle = FindFirstFileEx(fileDirBuffer, FindExInfoBasic, &fileData, FindExSearchNameMatch, NULL, 0);
+	HANDLE searchHandle = FindFirstFileEx(fileDirBuffer, FindExInfoBasic, &fileData, FindExSearchNameMatch, NULL, 0);
 	// если нужный файл нашелся
 	if(searchHandle != INVALID_HANDLE_VALUE){
 		// ret fileDirBuffer
@@ -2034,7 +1995,7 @@ HRESULT FindFilesInCurrentDir(WCHAR* fileDir, DWORD prevDirNullPos, DWORD fileDi
 		return S_OK;
 	} 
 	// если нужный файл не нашелся
-	else {
+	else{
 		FindClose(searchHandle);
 		
 		fileDirBuffer[fileDirBufLength + 1] = L'*'; // curDirLength + 1 потому что '*' нужно поставить после '\'
@@ -2050,18 +2011,22 @@ HRESULT FindFilesInCurrentDir(WCHAR* fileDir, DWORD prevDirNullPos, DWORD fileDi
 				// изменение текущей директории
 				size_t folderNameLength = FileNameLength(fileData.cFileName);
 				memcpy(&fileDirBuffer[fileDirBufLength - 1], fileData.cFileName[0], folderNameLength);
-				FindFilesInCurrentDir(fileDirBuffer, , , fileName, fileNameLength);
+				
+				// если в следующей директории нашелся файл
+				if (FindFilesInCurrentDir(fileDirBuffer, fileDirBufLength + folderNameLength - 2, fileName, fileNameLength) == S_OK){
+					FindClose(searchHandle);
+					return S_OK;
+				}
 			}	
 		} while (FindNextFile(searchHandle, &fileData) != 0)
 		}
 		// если директория пуста или все каталоги в директории проверены	
-		else {
-			fileDirBuffer[prevDirNullPos] = NULL;
+		else{
 			FindClose(searchHandle);
 			return E_FAIL;
 		}
 	}
-}
+};
 
 // с учетом null
 inline size_t __vectorcall FileNameLength(WCHAR* name){
